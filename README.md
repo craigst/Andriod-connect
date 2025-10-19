@@ -269,6 +269,16 @@ The `docker-compose.yml` includes:
   - `paperwork/` - Generated Excel files
   - `templates/` - Excel templates and signatures
 
+### GitHub Container Registry
+
+- Every push to `main` (and any tag that starts with `v`) automatically builds and publishes `ghcr.io/craigst/andriod-connect` via `.github/workflows/publish-container.yml`.
+- To pull the latest image: `docker pull ghcr.io/craigst/andriod-connect:latest`
+- To run locally: `docker run --rm -p 5020:5020 ghcr.io/craigst/andriod-connect:latest`
+- Republishing from a fork or local build:
+  1. `echo $TOKEN | docker login ghcr.io -u <github-username> --password-stdin` (`TOKEN` needs `write:packages`)
+  2. `docker build -f compose/Dockerfile -t ghcr.io/<namespace>/andriod-connect:latest .`
+  3. `docker push ghcr.io/<namespace>/andriod-connect:latest`
+
 ## ⚙️ Configuration
 
 ### Device Configuration

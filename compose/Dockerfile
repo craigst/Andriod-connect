@@ -1,5 +1,7 @@
 FROM python:3.11-slim
 
+LABEL org.opencontainers.image.source="https://github.com/craigst/Andriod-connect"
+
 # Install system dependencies including ADB, OpenCV dependencies, and LibreOffice
 RUN apt-get update && apt-get install -y \
     android-tools-adb \
