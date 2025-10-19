@@ -27,6 +27,7 @@ import credentials_manager
 import screen_detector
 import screen_macros
 import vehicle_lookup
+import init_screen_control_db
 
 # Flask app setup
 app = Flask(__name__)
@@ -1934,6 +1935,18 @@ if __name__ == '__main__':
     os.makedirs("templates", exist_ok=True)
     os.makedirs("static", exist_ok=True)
     os.makedirs(DATA_FOLDER, exist_ok=True)
+    
+    # Initialize screen_control database if it doesn't exist
+    screen_control_db_path = "data/screen_control.db"
+    if not os.path.exists(screen_control_db_path):
+        app.logger.info("Initializing screen_control database...")
+        try:
+            init_screen_control_db.init_database()
+            app.logger.info("✓ Screen control database initialized successfully")
+        except Exception as e:
+            app.logger.error(f"✗ Failed to initialize screen_control database: {e}")
+    else:
+        app.logger.info("✓ Screen control database found")
     
     # Auto-connect to all configured devices on startup
     app.logger.info("Auto-connecting to configured devices...")

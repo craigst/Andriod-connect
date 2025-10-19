@@ -1,25 +1,23 @@
 services:
   adb-device-manager:
-    build:
-      context: ..
-      dockerfile: compose/Dockerfile
+    image: ghcr.io/craigst/andriod-connect:${IMAGE_TAG:-latest}
     container_name: adb-device-manager
     restart: unless-stopped
     network_mode: host
     ports:
-      - "5020:5020"
+      - "${HOST_PORT:-5020}:${CONTAINER_PORT:-5020}"
     volumes:
       # Persistent data storage
-      - ../data:/app/data
-      - ../logs:/app/logs
-      - ../apk:/app/apk
-      # Optional: Mount templates for easy editing
-      - ../templates:/app/templates
+      - ${DATA_PATH:-../data}:/app/data
+      - ${LOGS_PATH:-../logs}:/app/logs
+      - ${APK_PATH:-../apk}:/app/apk
       # Paperwork output directory
-      - ../paperwork:/app/paperwork
+      - ${PAPERWORK_PATH:-../paperwork}:/app/paperwork
+      # Optional: Uncomment to edit templates live (must copy templates to host first)
+      # - ${TEMPLATES_PATH:-../templates}:/app/templates
     environment:
-      - PYTHONUNBUFFERED=1
-      - TZ=Europe/London
+      - PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
+      - TZ=${TZ:-Europe/London}
     privileged: true
     devices:
       - /dev/bus/usb:/dev/bus/usb
