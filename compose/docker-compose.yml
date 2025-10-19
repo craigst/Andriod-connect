@@ -1,0 +1,35 @@
+services:
+  adb-device-manager:
+    build:
+      context: ..
+      dockerfile: compose/Dockerfile
+    container_name: adb-device-manager
+    restart: unless-stopped
+    network_mode: host
+    ports:
+      - "5020:5020"
+    volumes:
+      # Persistent data storage
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../apk:/app/apk
+      # Optional: Mount templates for easy editing
+      - ../templates:/app/templates
+      # Paperwork output directory
+      - ../paperwork:/app/paperwork
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Europe/London
+    privileged: true
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    labels:
+      - "com.unraid.docker.managed=true"
+      - "com.unraid.docker.webui=http://[IP]:[PORT:5020]"
+      - "com.unraid.docker.icon=https://raw.githubusercontent.com/docker-library/docs/master/python/logo.png"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5020/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

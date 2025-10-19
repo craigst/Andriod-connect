@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(podman-compose build:*)",
+      "Bash(podman-compose up:*)",
+      "Bash(podman rm:*)",
+      "Bash(podman ps:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

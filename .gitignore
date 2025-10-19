@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sensitive Data - DO NOT COMMIT
+data/
+!data/.gitkeep
+logs/
+paperwork/
+screenshots/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Encryption keys
+*.key
+.screen_control_key
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+
+# OS files
+.DS_Store
+Thumbs.db
+*.log
+
+# Backup files
+*.bak
+*.backup
+*~

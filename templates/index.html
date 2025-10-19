@@ -1,0 +1,2711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADB Device Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 15px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            color: #667eea;
+            font-size: 1.8em;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        /* Tab Navigation */
+        .tab-nav {
+            background: white;
+            border-radius: 12px;
+            padding: 10px;
+            margin-bottom: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .tab-button {
+            flex: 1;
+            min-width: 150px;
+            background: #f3f4f6;
+            color: #4b5563;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .tab-button:hover {
+            background: #e5e7eb;
+        }
+
+        .tab-button.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        /* Tab Content */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+
+        .card h2 {
+            color: #333;
+            font-size: 1.2em;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        /* Compact spacing */
+        .compact-section {
+            margin: 10px 0;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .compact-section h3 {
+            font-size: 1em;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        /* Screenshot scaling */
+        .screenshot-container {
+            text-align: center;
+            background: #fff;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 200px;
+            max-height: 600px;
+            overflow: auto;
+            border: 2px solid #e5e7eb;
+        }
+
+        .screenshot-container img {
+            max-width: 100%;
+            max-height: 500px;
+            height: auto;
+            object-fit: contain;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .screenshot-fullscreen {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .screenshot-fullscreen:hover {
+            transform: scale(1.02);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status-online {
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+
+        .status-offline {
+            background: #ef4444;
+        }
+
+        .device-item {
+            padding: 10px;
+            margin: 6px 0;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+        }
+
+        .device-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+            font-size: 0.95em;
+        }
+
+        .device-details {
+            font-size: 0.8em;
+            color: #666;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.3s;
+            margin: 4px;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.85em;
+            margin: 2px;
+        }
+
+        .btn-success {
+            background: #10b981;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+        }
+
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .load-item {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 8px 0;
+            border-left: 3px solid #764ba2;
+        }
+
+        .load-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .load-number {
+            font-weight: 700;
+            color: #764ba2;
+            font-size: 1.05em;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin: 0 3px;
+        }
+
+        .badge-primary {
+            background: #ddd6fe;
+            color: #6d28d9;
+        }
+
+        .badge-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .location-info {
+            font-size: 0.85em;
+            color: #555;
+            margin: 4px 0;
+            line-height: 1.4;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin: 12px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            opacity: 0.9;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 52px;
+            height: 26px;
+            margin-left: 8px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.4s;
+            border-radius: 26px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #10b981;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .db-info {
+            background: #e0e7ff;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 8px 0;
+            font-size: 0.85em;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 12px;
+            border-radius: 6px;
+            margin: 8px 0;
+            font-size: 0.9em;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border-left: 3px solid #10b981;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border-left: 3px solid #ef4444;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+        }
+
+        .action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            overflow: auto;
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 40px auto;
+            padding: 0;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 1200px;
+            max-height: 85vh;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: white;
+            border: none;
+            padding: 0;
+        }
+
+        .close {
+            color: white;
+            font-size: 26px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .close:hover {
+            color: #f0f0f0;
+        }
+
+        .modal-body {
+            padding: 18px;
+            max-height: calc(85vh - 70px);
+            overflow-y: auto;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+            font-size: 0.85em;
+        }
+
+        .data-table th {
+            background: #667eea;
+            color: white;
+            padding: 10px 6px;
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .data-table td {
+            padding: 8px 6px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .data-table tr:hover {
+            background: #f3f4f6;
+        }
+
+        .data-table tr:nth-child(even) {
+            background: #f9fafb;
+        }
+
+        .data-table tr:nth-child(even):hover {
+            background: #f3f4f6;
+        }
+
+        /* Map Modal */
+        .map-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+
+        .map-modal-content {
+            background-color: white;
+            margin: 50px auto;
+            padding: 0;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 900px;
+            height: 80vh;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .map-modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .map-modal-header h3 {
+            margin: 0;
+            font-size: 1.1em;
+        }
+
+        .map-modal-body {
+            flex: 1;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .map-modal-body iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .clickable-postcode {
+            color: #667eea;
+            text-decoration: underline;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .clickable-postcode:hover {
+            color: #5568d3;
+        }
+
+        /* Toast Notification System */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 400px;
+        }
+
+        .toast {
+            background: white;
+            padding: 16px 20px;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            animation: slideIn 0.3s ease-out;
+            border-left: 4px solid #667eea;
+            min-width: 300px;
+            position: relative;
+        }
+
+        .toast-success {
+            border-left-color: #10b981;
+        }
+
+        .toast-error {
+            border-left-color: #ef4444;
+        }
+
+        .toast-info {
+            border-left-color: #3b82f6;
+        }
+
+        .toast-icon {
+            font-size: 1.2em;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .toast-content {
+            flex: 1;
+        }
+
+        .toast-message {
+            color: #333;
+            font-size: 0.9em;
+            line-height: 1.4;
+            margin: 0;
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            color: #999;
+            font-size: 1.2em;
+            cursor: pointer;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+            flex-shrink: 0;
+        }
+
+        .toast-close:hover {
+            color: #333;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateX(100px);
+            }
+        }
+
+        .toast.removing {
+            animation: fadeOut 0.3s ease-out forwards;
+        }
+
+        @media (max-width: 768px) {
+            .toast-container {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+                max-width: none;
+            }
+
+            .toast {
+                min-width: auto;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .tab-button {
+                min-width: 120px;
+            }
+
+            .data-table {
+                font-size: 0.75em;
+            }
+
+            .map-modal-content {
+                width: 95%;
+                height: 70vh;
+                margin: 20px auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <div class="container">
+        <header>
+            <h1>🤖 ADB Device Manager</h1>
+            <p class="subtitle">Manage Android devices and track load data</p>
+        </header>
+
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+            <button class="tab-button active" onclick="switchTab('dashboard')">📊 Dashboard</button>
+            <button class="tab-button" onclick="switchTab('loads')">🚛 Loads & Paperwork</button>
+            <button class="tab-button" onclick="switchTab('vision')">🎮 Vision & Automation</button>
+            <button class="tab-button" onclick="switchTab('database')">💾 Database</button>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard-tab" class="tab-content active">
+            <!-- Statistics Section -->
+            <div class="card">
+                <h2>📊 Load Statistics</h2>
+                <div class="stats-grid" id="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-total-loads">-</div>
+                        <div class="stat-label">Total Loads</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-total-vehicles">-</div>
+                        <div class="stat-label">Total Vehicles</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-collections">-</div>
+                        <div class="stat-label">Collections</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-deliveries">-</div>
+                        <div class="stat-label">Deliveries</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Device Status Section -->
+            <div class="card">
+                <h2>📱 Device Status</h2>
+                <div id="device-list">
+                    <div class="empty-state">
+                        <p>Loading devices...</p>
+                    </div>
+                </div>
+                <div class="action-buttons" style="margin-top: 12px;">
+                    <button class="btn" onclick="connectDevices()">🔌 Connect All</button>
+                    <button class="btn btn-success" onclick="addDevice()">➕ Add Device</button>
+                    <button class="btn btn-secondary" onclick="refreshDevices()">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <!-- Database Info Card -->
+            <div class="card">
+                <h2>💾 Database Status</h2>
+                <div id="db-info" class="db-info">
+                    <p>Loading database info...</p>
+                </div>
+                <div class="action-buttons" style="margin-top: 8px;">
+                    <button class="btn btn-success" onclick="pullSQL()">📥 Pull SQL Data</button>
+                    <button class="btn btn-secondary" onclick="refreshDatabaseInfo()">🔄 Refresh</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loads & Paperwork Tab -->
+        <div id="loads-tab" class="tab-content">
+            <div class="card">
+                <h2>🚛 Load Overview</h2>
+                <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label for="load-sort" style="font-weight: 500; margin: 0;">📅 Sort by:</label>
+                        <select id="load-sort" class="btn" style="padding: 8px 12px; min-width: 150px;" onchange="changeSortOrder()">
+                            <option value="date_desc">Newest First</option>
+                            <option value="date_asc">Oldest First</option>
+                            <option value="load_number">Load Number</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-secondary" onclick="refreshLoads()">🔄 Refresh Loads</button>
+                </div>
+                <div id="loads-list">
+                    <div class="empty-state">
+                        <p>Loading load data...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📅 Timesheet Generator</h2>
+                <div class="compact-section">
+                    <label for="week-select" style="display: block; margin-bottom: 8px; font-weight: 500;">
+                        Select Week (Monday - Sunday):
+                    </label>
+                    <select id="week-select" class="btn" style="width: 100%; text-align: left; padding: 10px;">
+                        <option value="">Loading weeks...</option>
+                    </select>
+                </div>
+                <button class="btn btn-success" onclick="generateTimesheet()" style="width: 100%; margin-top: 8px;">
+                    📅 Generate Timesheet
+                </button>
+            </div>
+
+            <div class="card">
+                <h2>⏰ Weekly Time Entry</h2>
+                <div class="compact-section">
+                    <p style="font-size: 0.9em; color: #666; margin-bottom: 12px;">
+                        Track your daily start/finish times and hours for the week.
+                    </p>
+                    
+                    <div style="background: #e0e7ff; padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+                        <label for="time-week-select" style="display: block; margin-bottom: 6px; font-weight: 500;">
+                            Week Ending (Sunday):
+                        </label>
+                        <input type="date" id="time-week-select" 
+                               style="width: 100%; padding: 8px; background: white; text-align: left; border: 1px solid #e5e7eb; border-radius: 6px; font-family: inherit; cursor: pointer;">
+                    </div>
+                    
+                    <div id="time-entry-grid" style="display: none;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                            <thead>
+                                <tr style="background: #667eea; color: white;">
+                                    <th style="padding: 8px; text-align: left;">Day</th>
+                                    <th style="padding: 8px;">Start</th>
+                                    <th style="padding: 8px;">Finish</th>
+                                    <th style="padding: 8px;">Hours</th>
+                                </tr>
+                            </thead>
+                            <tbody id="time-entry-rows">
+                                <!-- Rows generated by JS -->
+                            </tbody>
+                            <tfoot>
+                                <tr style="background: #f3f4f6; font-weight: bold;">
+                                    <td style="padding: 10px;" colspan="3">Total Weekly Hours:</td>
+                                    <td style="padding: 10px; text-align: center;" id="total-hours">0.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                        
+                        <div class="action-buttons" style="margin-top: 12px;">
+                            <button class="btn btn-success" onclick="saveTimeEntries()" style="flex: 1;">
+                                💾 Save Time Entries
+                            </button>
+                            <button class="btn btn-secondary" onclick="clearTimeEntries()" style="flex: 1;">
+                                🔄 Clear All
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <button class="btn" onclick="loadTimeEntryForm()" style="width: 100%; margin-top: 8px;">
+                        📝 Load Time Entry Form
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vision & Automation Tab -->
+        <div id="vision-tab" class="tab-content">
+            <div class="card">
+                <h2>🎮 Screen Control & Automation</h2>
+                
+                <!-- Device Selector -->
+                <div class="compact-section">
+                    <label for="screen-control-device" style="display: block; margin-bottom: 8px; font-weight: 500;">
+                        Select Device:
+                    </label>
+                    <select id="screen-control-device" class="btn" style="width: 100%; text-align: left; padding: 10px;">
+                        <option value="">Select a device...</option>
+                    </select>
+                </div>
+
+                <!-- Screenshot Viewer -->
+                <div class="compact-section">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <strong>📸 Live Screenshot</strong>
+                        <div>
+                            <label class="toggle-switch" style="margin: 0;">
+                                <input type="checkbox" id="auto-screenshot-toggle" onchange="toggleAutoScreenshot()">
+                                <span class="slider"></span>
+                            </label>
+                            <span style="margin-left: 8px; font-size: 0.85em;">Auto-refresh (5s)</span>
+                        </div>
+                    </div>
+                    
+                    <div id="screenshot-container" class="screenshot-container">
+                        <p style="color: #666; padding: 40px 0;">Select a device and capture a screenshot to begin</p>
+                    </div>
+                    
+                    <div id="screen-detection-info" style="margin-top: 8px; padding: 8px; background: #e0e7ff; border-radius: 6px; display: none; font-size: 0.9em;">
+                        <strong>Detected Screen:</strong> <span id="detected-screen-name">-</span><br>
+                        <strong>Confidence:</strong> <span id="detected-confidence">-</span>
+                    </div>
+                    
+                    <div style="margin-top: 10px;" class="action-buttons">
+                        <button class="btn" onclick="captureScreenshot()">📸 Capture Screenshot</button>
+                        <button class="btn btn-success" onclick="detectCurrentScreen()">🔍 Detect Screen</button>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="compact-section">
+                    <strong style="display: block; margin-bottom: 8px;">⚡ Quick Actions</strong>
+                    <div class="action-buttons">
+                        <button class="btn btn-success" onclick="executeAutoLogin()">🔐 Auto Login</button>
+                        <button class="btn" onclick="showCredentialsForm()">🔑 Manage Credentials</button>
+                        <button class="btn" onclick="showMacroBuilder()">🤖 Macro Builder</button>
+                        <button class="btn btn-secondary" onclick="showTemplates()">🖼️ Templates</button>
+                    </div>
+                </div>
+
+                <!-- Credentials Form -->
+                <div id="credentials-form" class="compact-section" style="background: #e0e7ff; display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <strong>🔑 Device Credentials</strong>
+                        <button class="btn btn-danger btn-sm" onclick="hideCredentialsForm()">✕ Close</button>
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 0.9em;">Username:</label>
+                        <input type="text" id="cred-username" class="btn" style="width: 100%; padding: 8px; background: white; text-align: left;">
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 0.9em;">Password:</label>
+                        <input type="password" id="cred-password" class="btn" style="width: 100%; padding: 8px; background: white; text-align: left;">
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn btn-success" onclick="saveCredentials()">💾 Save Credentials</button>
+                        <button class="btn btn-danger" onclick="deleteCredentials()">🗑️ Delete Credentials</button>
+                    </div>
+                </div>
+
+                <!-- Macro List -->
+                <div id="macros-list" class="compact-section" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <strong>🤖 Available Macros</strong>
+                        <button class="btn btn-danger btn-sm" onclick="hideMacroBuilder()">✕ Close</button>
+                    </div>
+                    <div id="macros-container" style="margin-bottom: 8px;">
+                        <p style="color: #666;">Loading macros...</p>
+                    </div>
+                    <button class="btn btn-success" onclick="createNewMacro()">➕ Create New Macro</button>
+                </div>
+
+                <!-- Templates List -->
+                <div id="templates-list" class="compact-section" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <strong>🖼️ Screen Templates</strong>
+                        <button class="btn btn-danger btn-sm" onclick="hideTemplates()">✕ Close</button>
+                    </div>
+                    <div id="templates-container" style="margin-bottom: 8px;">
+                        <p style="color: #666;">Loading templates...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Database Tab -->
+        <div id="database-tab" class="tab-content">
+            <div class="card">
+                <h2>💾 Database Control</h2>
+                <div id="db-info-full" class="db-info">
+                    <p>Loading database info...</p>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-success" onclick="pullSQL()">📥 Pull SQL Data</button>
+                    <button class="btn" onclick="viewRawData('dwjjob')">📊 View Jobs</button>
+                    <button class="btn" onclick="viewRawData('dwvveh')">🚗 View Vehicles</button>
+                </div>
+                
+                <div class="compact-section" style="margin-top: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div>
+                            <strong>Auto-Refresh SQL Data</strong>
+                            <p style="font-size: 0.8em; color: #666; margin-top: 4px;">Automatically pull SQL data</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="auto-refresh-toggle" onchange="toggleAutoRefresh()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div style="margin-top: 12px;">
+                        <label for="refresh-interval" style="display: block; margin-bottom: 6px; font-size: 0.9em;">
+                            <strong>Interval:</strong> <span id="interval-value">10</span> minutes
+                        </label>
+                        <input type="range" id="refresh-interval" min="1" max="60" value="10" 
+                               style="width: 100%; cursor: pointer;" 
+                               onchange="updateRefreshInterval(this.value)">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.7em; color: #666; margin-top: 4px;">
+                            <span>1 min</span>
+                            <span>60 min</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for viewing data -->
+    <div id="dataModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Data Viewer</h2>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <p>Loading...</p>
+            </div>
+        </div>
+    </div>
+
+        <!-- Map Modal -->
+        <div id="mapModal" class="map-modal">
+            <div class="map-modal-content">
+                <div class="map-modal-header">
+                    <h3 id="map-title">📍 Location Map</h3>
+                    <span class="close" onclick="closeMapModal()">&times;</span>
+                </div>
+                <div class="map-modal-body">
+                    <iframe id="map-iframe" src="" frameborder="0"></iframe>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vehicle Lookup Modal -->
+        <div id="vehicleLookupModal" class="modal">
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2>🔍 Vehicle Lookup</h2>
+                    <span class="close" onclick="closeVehicleLookupModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div style="margin-bottom: 15px;">
+                        <strong>Registration:</strong> <span id="lookup-reg" style="font-size: 1.2em; color: #667eea;"></span>
+                    </div>
+                    
+                    <div id="lookup-loading" style="text-align: center; padding: 20px; display: none;">
+                        <div class="loading"></div>
+                        <p style="margin-top: 10px;">Looking up vehicle...</p>
+                    </div>
+                    
+                    <div id="lookup-results" style="display: none;">
+                        <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+                            <strong>Database Value:</strong><br>
+                            <span id="db-value" style="color: #666;">-</span>
+                        </div>
+                        
+                        <div id="motorcheck-result" style="background: #e0e7ff; padding: 12px; border-radius: 6px; margin-bottom: 12px; display: none;">
+                            <strong>🔍 Motorcheck Result:</strong><br>
+                            <span id="motorcheck-value" style="color: #333; font-weight: 500;">-</span>
+                        </div>
+                        
+                        <div id="override-result" style="background: #d1fae5; padding: 12px; border-radius: 6px; margin-bottom: 12px; display: none;">
+                            <strong>✅ Saved Override:</strong><br>
+                            <span id="override-value" style="color: #065f46; font-weight: 500;">-</span><br>
+                            <span style="font-size: 0.8em; color: #666;">Saved: <span id="override-date">-</span></span>
+                        </div>
+                        
+                        <div style="margin-top: 15px;">
+                            <label style="display: block; margin-bottom: 6px; font-weight: 500;">Manual Override:</label>
+                            <input type="text" id="override-input" class="btn" 
+                                   style="width: 100%; padding: 10px; background: white; text-align: left; margin-bottom: 8px;"
+                                   placeholder="Enter make and model">
+                            <button class="btn btn-success" onclick="saveVehicleOverride()" style="width: 100%;">
+                                💾 Save Override
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="lookup-error" class="alert alert-error" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+
+    <script>
+        // API base URL
+        const API_BASE = window.location.origin;
+
+        // Auto-refresh status
+        let autoRefreshEnabled = false;
+
+        // Screen Control Variables
+        let autoScreenshotInterval = null;
+        let selectedDevice = null;
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remove active from all buttons
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.add('active');
+            
+            // Activate button
+            event.target.classList.add('active');
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshDevices();
+            refreshDatabaseInfo();
+            refreshLoads();
+            checkAutoRefreshStatus();
+            loadAvailableWeeks();
+            loadScreenControlDevices();
+            
+            // Auto-refresh loads every 30 seconds
+            setInterval(() => {
+                refreshLoads();
+                refreshDatabaseInfo();
+                loadAvailableWeeks();
+            }, 30000);
+        });
+
+        // Device Management
+        async function refreshDevices() {
+            try {
+                const response = await fetch(`${API_BASE}/api/devices`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayDevices(data.devices);
+                }
+            } catch (error) {
+                console.error('Error refreshing devices:', error);
+            }
+        }
+
+        function displayDevices(devices) {
+            const container = document.getElementById('device-list');
+            
+            if (devices.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No devices configured</p></div>';
+                return;
+            }
+            
+            container.innerHTML = devices.map(device => `
+                <div class="device-item">
+                    <div class="device-name">
+                        <span class="status-indicator ${device.connected ? 'status-online' : 'status-offline'}"></span>
+                        ${device.name}
+                        <button class="btn btn-danger btn-sm" style="float: right;" 
+                                onclick="removeDevice('${device.address}')">Remove</button>
+                    </div>
+                    <div class="device-details">
+                        ${device.address}<br>
+                        App: ${device.app_installed ? '✅ Installed' : '❌ Not Installed'}
+                        ${device.app_running ? ' • 🟢 Running' : device.app_installed ? ' • ⚫ Stopped' : ''}
+                    </div>
+                    ${device.connected ? `
+                        <div style="margin-top: 6px;" class="action-buttons">
+                            ${device.app_running ? 
+                                `<button class="btn btn-danger btn-sm" onclick="stopApp('${device.address}')">⏹️ Stop App</button>` :
+                                `<button class="btn btn-success btn-sm" onclick="startApp('${device.address}')">▶️ Start App</button>`
+                            }
+                            <button class="btn btn-sm" onclick="reinstallApp('${device.address}')">🔄 Reinstall</button>
+                            ${device.app_installed && !device.app_running ? 
+                                `<button class="btn btn-danger btn-sm" onclick="deleteSQLFromDevice('${device.address}')">🗑️ Delete SQL</button>` :
+                                `<button class="btn btn-danger btn-sm" disabled title="App must be installed and stopped">🗑️ Delete SQL</button>`
+                            }
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        async function addDevice() {
+            const ip = prompt('Enter device IP address:');
+            if (!ip) return;
+            
+            const port = prompt('Enter port (default: 5555):', '5555');
+            const name = prompt('Enter device name:');
+            if (!name) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/devices/add`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip, port, name })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert(`Device ${name} added successfully`, 'success');
+                    refreshDevices();
+                } else {
+                    showAlert('Failed to add device: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error adding device: ' + error.message, 'error');
+            }
+        }
+
+        async function removeDevice(address) {
+            if (!confirm(`Remove device ${address}?`)) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/devices/remove`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    refreshDevices();
+                } else {
+                    showAlert('Failed to remove device: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error removing device: ' + error.message, 'error');
+            }
+        }
+
+        async function startApp(address) {
+            try {
+                showAlert('Starting app...', 'info');
+                const response = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(address)}/start`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    setTimeout(refreshDevices, 2000);
+                } else {
+                    showAlert('Failed to start app: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error starting app: ' + error.message, 'error');
+            }
+        }
+
+        async function stopApp(address) {
+            try {
+                showAlert('Stopping app...', 'info');
+                const response = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(address)}/stop`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    setTimeout(refreshDevices, 2000);
+                } else {
+                    showAlert('Failed to stop app: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error stopping app: ' + error.message, 'error');
+            }
+        }
+
+        async function reinstallApp(address) {
+            if (!confirm('Reinstall app on this device?')) return;
+            
+            try {
+                showAlert('Reinstalling app...', 'info');
+                const response = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(address)}/reinstall`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    setTimeout(refreshDevices, 2000);
+                } else {
+                    showAlert('Failed to reinstall app: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error reinstalling app: ' + error.message, 'error');
+            }
+        }
+
+        async function deleteSQLFromDevice(address) {
+            if (!confirm('Delete SQL database from this device? The app will download a fresh database on next start.')) return;
+            
+            try {
+                showAlert('Deleting SQL database...', 'info');
+                const response = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(address)}/delete-sql`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    setTimeout(refreshDevices, 2000);
+                } else {
+                    showAlert('Failed to delete SQL: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error deleting SQL: ' + error.message, 'error');
+            }
+        }
+
+        async function connectDevices() {
+            try {
+                const response = await fetch(`${API_BASE}/api/devices/connect`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Devices connection attempted', 'success');
+                    setTimeout(refreshDevices, 2000);
+                }
+            } catch (error) {
+                showAlert('Error connecting devices: ' + error.message, 'error');
+            }
+        }
+
+        // Database Management
+        async function refreshDatabaseInfo() {
+            try {
+                const response = await fetch(`${API_BASE}/api/database/info`);
+                const data = await response.json();
+                
+                const infoDiv = document.getElementById('db-info');
+                const infoDiv2 = document.getElementById('db-info-full');
+                
+                let infoHTML = '';
+                if (data.exists) {
+                    infoHTML = `
+                        <strong>📁 Database Status:</strong> ✅ Available<br>
+                        <strong>Size:</strong> ${data.size_mb} MB<br>
+                        <strong>Last Updated:</strong> ${new Date(data.last_modified).toLocaleString()}
+                    `;
+                } else {
+                    infoHTML = `
+                        <strong>📁 Database Status:</strong> ❌ Not Found<br>
+                        <em>Please pull SQL data from a device</em>
+                    `;
+                }
+                
+                infoDiv.innerHTML = infoHTML;
+                if (infoDiv2) infoDiv2.innerHTML = infoHTML;
+            } catch (error) {
+                console.error('Error refreshing database info:', error);
+            }
+        }
+
+        async function pullSQL() {
+            try {
+                showAlert('Pulling SQL data from device...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/sql/pull`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('SQL data downloaded successfully!', 'success');
+                    refreshDatabaseInfo();
+                    refreshLoads();
+                } else {
+                    showAlert('Failed to pull SQL: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error pulling SQL: ' + error.message, 'error');
+            }
+        }
+
+        // Load Management
+        let currentSortOrder = 'date_desc';
+
+        async function refreshLoads(sortOrder = null) {
+            try {
+                // Use provided sort order or current one
+                const sort = sortOrder || currentSortOrder;
+                
+                const response = await fetch(`${API_BASE}/api/loads?sort=${sort}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayLoads(data.loads);
+                    updateStats(data);
+                    // Update the dropdown to match current sort
+                    if (data.sort_order) {
+                        currentSortOrder = data.sort_order;
+                        document.getElementById('load-sort').value = data.sort_order;
+                    }
+                } else {
+                    const container = document.getElementById('loads-list');
+                    container.innerHTML = `
+                        <div class="alert alert-info">
+                            ${data.error || 'No load data available'}<br>
+                            <em>Pull SQL data from a device to view loads</em>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error refreshing loads:', error);
+            }
+        }
+
+        function changeSortOrder() {
+            const sortOrder = document.getElementById('load-sort').value;
+            currentSortOrder = sortOrder;
+            refreshLoads(sortOrder);
+        }
+
+        function displayLoads(loads) {
+            const container = document.getElementById('loads-list');
+            
+            if (loads.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No loads found in database</p></div>';
+                return;
+            }
+            
+            container.innerHTML = loads.map(load => {
+                // Check if this is a PRE-BOOK (load number 000000 or 0 vehicles)
+                const isPreBook = load.load_number === '000000' || load.total_vehicles === 0;
+                
+                if (isPreBook) {
+                    // Special rendering for PRE-BOOK entries
+                    const prebookData = load.prebook || {};
+                    const formatTime = (time) => {
+                        if (!time) return '';
+                        const timeStr = String(time).padStart(4, '0');
+                        return `${timeStr.slice(0, 2)}:${timeStr.slice(2)}`;
+                    };
+                    
+                    return `
+                        <div class="load-item" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-left: 4px solid #f59e0b;">
+                            <div class="load-header">
+                                <div>
+                                    <span style="font-weight: 700; color: #92400e; font-size: 1.1em;">📋 PRE-BOOK NOTIFICATION</span>
+                                    ${load.earliest_date_formatted ? `<br><span style="font-size: 0.9em; color: #78350f; font-weight: 600;">📅 ${load.earliest_date_formatted}</span>` : ''}
+                                </div>
+                                <span class="badge" style="background: #f59e0b; color: white;">⏰ Ready Time</span>
+                            </div>
+                            
+                            ${prebookData.date || prebookData.time ? `
+                                <div class="location-info" style="color: #78350f; font-weight: 500; margin-top: 8px;">
+                                    ⏰ <strong>Expected Ready:</strong> ${prebookData.date || ''}${prebookData.time ? ` at ${formatTime(prebookData.time)}` : ''}
+                                </div>
+                            ` : ''}
+                            
+                            ${prebookData.location ? `
+                                <div class="location-info" style="color: #78350f;">
+                                    📍 <strong>Location:</strong> ${prebookData.location}${prebookData.town ? ` (${prebookData.town})` : ''}${prebookData.postcode ? ` - <span class="clickable-postcode" onclick="openMapModal('${prebookData.postcode}')">${prebookData.postcode}</span>` : ''}
+                                </div>
+                            ` : ''}
+                            
+                            ${prebookData.customer ? `
+                                <div class="location-info" style="color: #78350f;">
+                                    🏢 <strong>Customer:</strong> ${prebookData.customer}
+                                </div>
+                            ` : ''}
+                            
+                            <div style="margin-top: 10px; padding: 8px; background: rgba(255,255,255,0.6); border-radius: 6px; font-size: 0.85em; color: #78350f;">
+                                ℹ️ This is a placement notification indicating when you should be ready for the next job assignment.
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Normal load rendering
+                const formatTime = (time) => {
+                    if (!time) return '';
+                    const timeStr = String(time).padStart(4, '0');
+                    return `${timeStr.slice(0, 2)}:${timeStr.slice(2)}`;
+                };
+                
+                return `
+                    <div class="load-item">
+                        <div class="load-header">
+                            <div>
+                                <span class="load-number">${load.load_number}</span>
+                                ${load.earliest_date_formatted ? `<br><span style="font-size: 0.85em; color: #666; font-weight: 500;">📅 ${load.earliest_date_formatted}</span>` : ''}
+                            </div>
+                            <div>
+                                <span class="badge badge-success">${load.total_vehicles} vehicles</span>
+                                ${load.collections.length > 0 ? `<span class="badge badge-primary">${load.collections.length} collection${load.collections.length > 1 ? 's' : ''}</span>` : ''}
+                                ${load.deliveries.length > 0 ? `<span class="badge badge-warning">${load.deliveries.length} deliver${load.deliveries.length > 1 ? 'ies' : 'y'}</span>` : ''}
+                            </div>
+                        </div>
+                    
+                    ${load.collections.map(col => `
+                        <div class="location-info">
+                            📦 <strong>Collection:</strong> ${col.location} (${col.town}, <span class="clickable-postcode" onclick="openMapModal('${col.postcode}')">${col.postcode}</span>)
+                            ${col.time ? `<br>&nbsp;&nbsp;&nbsp;&nbsp;⏰ <strong>Time:</strong> ${formatTime(col.time)}` : ''}
+                            ${col.date ? ` • ${col.date}` : ''}
+                            ${col.customer ? ` • ${col.customer}` : ''}
+                        </div>
+                    `).join('')}
+                    
+                    ${load.deliveries.map(del => `
+                        <div class="location-info">
+                            🏁 <strong>Delivery:</strong> ${del.location} (${del.town}, <span class="clickable-postcode" onclick="openMapModal('${del.postcode}')">${del.postcode}</span>)
+                            ${del.time ? `<br>&nbsp;&nbsp;&nbsp;&nbsp;⏰ <strong>Time:</strong> ${formatTime(del.time)}` : ''}
+                            ${del.date ? ` • ${del.date}` : ''}
+                            ${del.customer ? ` • ${del.customer}` : ''}
+                        </div>
+                    `).join('')}
+                    
+                    ${load.vehicles.length > 0 ? `
+                        <div class="location-info" style="margin-top: 8px;">
+                            <strong>Vehicles:</strong><br>
+                            ${load.vehicles.map(v => `
+                                <div style="margin-left: 15px; margin-top: 3px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <span>🚗 <strong>${v.ref}</strong> - ${v.model || 'Unknown Model'}${v.color ? ` (${v.color})` : ''}</span>
+                                    ${v.location_info ? `<span style="background: #e0e7ff; padding: 2px 8px; border-radius: 10px; font-size: 0.85em; color: #4338ca; font-weight: 500;">📍 ${v.location_info}</span>` : ''}
+                                    <span onclick="openVehicleLookupModal('${v.ref}', '${v.model || ''}')" 
+                                          style="cursor: pointer; font-size: 1.1em; color: #667eea; transition: transform 0.2s;"
+                                          onmouseover="this.style.transform='scale(1.2)'"
+                                          onmouseout="this.style.transform='scale(1)'"
+                                          title="Look up vehicle details">
+                                        🔍
+                                    </span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                    
+                    <div style="margin-top: 10px;" class="action-buttons">
+                        <button class="btn btn-success btn-sm" onclick="generateLoadsheet('${load.load_number}')">
+                            📊 Generate XLSX
+                        </button>
+                        <button id="download-xlsx-${load.load_number}" class="btn btn-secondary btn-sm" 
+                                onclick="downloadLoadsheet('${load.load_number}', 'xlsx')" disabled>
+                            📥 Download XLSX
+                        </button>
+                        <button class="btn btn-success btn-sm" onclick="generateLoadsheetPDF('${load.load_number}')">
+                            📄 Generate PDF
+                        </button>
+                        <button id="download-pdf-${load.load_number}" class="btn btn-secondary btn-sm" 
+                                onclick="downloadLoadsheet('${load.load_number}', 'pdf')" disabled>
+                            📥 Download PDF
+                        </button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+            
+            // Check if loadsheets exist for each load
+            loads.forEach(load => {
+                checkLoadsheetExists(load.load_number);
+            });
+        }
+
+        function updateStats(data) {
+            document.getElementById('stat-total-loads').textContent = data.total_loads || 0;
+            
+            const totalVehicles = data.loads.reduce((sum, load) => sum + load.total_vehicles, 0);
+            document.getElementById('stat-total-vehicles').textContent = totalVehicles;
+            
+            const totalCollections = data.loads.reduce((sum, load) => sum + load.collections.length, 0);
+            document.getElementById('stat-collections').textContent = totalCollections;
+            
+            const totalDeliveries = data.loads.reduce((sum, load) => sum + load.deliveries.length, 0);
+            document.getElementById('stat-deliveries').textContent = totalDeliveries;
+        }
+
+        // Auto-refresh Control
+        async function checkAutoRefreshStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/api/auto-refresh`);
+                const data = await response.json();
+                
+                autoRefreshEnabled = data.enabled;
+                document.getElementById('auto-refresh-toggle').checked = data.enabled;
+                
+                const interval = data.interval_minutes || 10;
+                document.getElementById('refresh-interval').value = interval;
+                document.getElementById('interval-value').textContent = interval;
+            } catch (error) {
+                console.error('Error checking auto-refresh status:', error);
+            }
+        }
+
+        async function toggleAutoRefresh() {
+            const enabled = document.getElementById('auto-refresh-toggle').checked;
+            const interval = parseInt(document.getElementById('refresh-interval').value);
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/auto-refresh`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        enable: enabled,
+                        interval_minutes: interval
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    autoRefreshEnabled = enabled;
+                    showAlert(data.message, 'success');
+                } else {
+                    document.getElementById('auto-refresh-toggle').checked = !enabled;
+                    showAlert('Failed to toggle auto-refresh', 'error');
+                }
+            } catch (error) {
+                document.getElementById('auto-refresh-toggle').checked = !enabled;
+                showAlert('Error toggling auto-refresh: ' + error.message, 'error');
+            }
+        }
+
+        async function updateRefreshInterval(minutes) {
+            document.getElementById('interval-value').textContent = minutes;
+            
+            const enabled = document.getElementById('auto-refresh-toggle').checked;
+            
+            if (enabled) {
+                try {
+                    const response = await fetch(`${API_BASE}/api/auto-refresh`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            enable: true,
+                            interval_minutes: parseInt(minutes)
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showAlert(`Auto-refresh interval updated to ${minutes} minutes`, 'success');
+                    } else {
+                        showAlert('Failed to update interval: ' + data.error, 'error');
+                    }
+                } catch (error) {
+                    showAlert('Error updating interval: ' + error.message, 'error');
+                }
+            }
+        }
+
+        // Modal Functions
+        function closeModal() {
+            document.getElementById('dataModal').style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('dataModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+
+        // Utility Functions
+        async function viewRawData(table) {
+            try {
+                showAlert('Loading data...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/sql/data/${table}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayDataModal(table, data.data);
+                } else {
+                    showAlert('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error viewing data: ' + error.message, 'error');
+            }
+        }
+
+        function displayDataModal(table, data) {
+            const modal = document.getElementById('dataModal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalBody = document.getElementById('modal-body');
+            
+            const titles = {
+                'dwjjob': '📊 Job Data (DWJJOB)',
+                'dwvveh': '🚗 Vehicle Data (DWVVEH)'
+            };
+            modalTitle.textContent = titles[table] || 'Data Viewer';
+            
+            if (data.length === 0) {
+                modalBody.innerHTML = '<p style="text-align: center; padding: 30px; color: #666;">No data found</p>';
+            } else if (table === 'dwjjob') {
+                modalBody.innerHTML = buildJobTable(data);
+            } else if (table === 'dwvveh') {
+                modalBody.innerHTML = buildVehicleTable(data);
+            }
+            
+            modal.style.display = 'block';
+        }
+
+        function buildJobTable(data) {
+            let html = `
+                <div style="margin-bottom: 8px;">
+                    <strong>Total Records:</strong> ${data.length}
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Load #</th>
+                            <th>Type</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Customer</th>
+                            <th>Location</th>
+                            <th>Town</th>
+                            <th>Postcode</th>
+                            <th>Vehicles</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.forEach(row => {
+                const jobType = row.dwjType === 'C' ? '📦 Collection' : row.dwjType === 'D' ? '🏁 Delivery' : row.dwjType;
+                const date = row.dwjDate_formatted || row.dwjDate || '-';
+                
+                html += `
+                    <tr>
+                        <td><strong>${row.dwjLoad || '-'}</strong></td>
+                        <td>${jobType}</td>
+                        <td>${date}</td>
+                        <td>${row.dwjTime || '-'}</td>
+                        <td>${row.dwjCust || '-'}</td>
+                        <td>${row.dwjName || '-'}</td>
+                        <td>${row.dwjTown || '-'}</td>
+                        <td>${row.dwjPostco || '-'}</td>
+                        <td>${row.dwjVehs || '-'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `</tbody></table>`;
+            return html;
+        }
+
+        function buildVehicleTable(data) {
+            let html = `
+                <div style="margin-bottom: 8px;">
+                    <strong>Total Records:</strong> ${data.length}
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Load #</th>
+                            <th>Position</th>
+                            <th>Vehicle Ref</th>
+                            <th>Model</th>
+                            <th>Color</th>
+                            <th>Status</th>
+                            <th>Type</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.forEach(row => {
+                html += `
+                    <tr>
+                        <td><strong>${row.dwvLoad || '-'}</strong></td>
+                        <td>${row.dwvPos || '-'}</td>
+                        <td><strong>${row.dwvVehRef || '-'}</strong></td>
+                        <td>${row.dwvModDes || '-'}</td>
+                        <td>${row.dwvColDes || '-'}</td>
+                        <td>${row.dwvStatus || '-'}</td>
+                        <td>${row.dwvType || '-'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `</tbody></table>`;
+            return html;
+        }
+
+        function showAlert(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            
+            // Icon mapping
+            const icons = {
+                'success': '✅',
+                'error': '❌',
+                'info': 'ℹ️'
+            };
+            
+            toast.innerHTML = `
+                <div class="toast-icon">${icons[type] || 'ℹ️'}</div>
+                <div class="toast-content">
+                    <p class="toast-message">${message}</p>
+                </div>
+                <button class="toast-close" onclick="removeToast(this.parentElement)">×</button>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                removeToast(toast);
+            }, 5000);
+        }
+
+        function removeToast(toast) {
+            toast.classList.add('removing');
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.parentElement.removeChild(toast);
+                }
+            }, 300);
+        }
+
+        // Paperwork Generation Functions
+        async function generateLoadsheet(loadNumber) {
+            try {
+                showAlert('Generating loadsheet...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/paperwork/loadsheet`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ load_number: loadNumber })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Loadsheet generated successfully!', 'success');
+                    checkLoadsheetExists(loadNumber);
+                } else {
+                    showAlert('Failed to generate loadsheet: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error generating loadsheet: ' + error.message, 'error');
+            }
+        }
+
+        async function generateLoadsheetPDF(loadNumber) {
+            try {
+                showAlert('Generating PDF loadsheet...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/paperwork/loadsheet`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ load_number: loadNumber })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('PDF loadsheet generated successfully!', 'success');
+                    checkLoadsheetExists(loadNumber);
+                } else {
+                    showAlert('Failed to generate PDF: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error generating PDF: ' + error.message, 'error');
+            }
+        }
+
+        async function checkLoadsheetExists(loadNumber) {
+            try {
+                const response = await fetch(`${API_BASE}/api/paperwork/exists/${loadNumber}`);
+                const data = await response.json();
+                
+                // Check for XLSX
+                const xlsxBtn = document.getElementById(`download-xlsx-${loadNumber}`);
+                if (xlsxBtn && data.exists) {
+                    xlsxBtn.disabled = false;
+                    xlsxBtn.classList.remove('btn-secondary');
+                    xlsxBtn.classList.add('btn-success');
+                }
+                
+                // Check for PDF (same file with .pdf extension)
+                const pdfBtn = document.getElementById(`download-pdf-${loadNumber}`);
+                if (pdfBtn && data.exists) {
+                    pdfBtn.disabled = false;
+                    pdfBtn.classList.remove('btn-secondary');
+                    pdfBtn.classList.add('btn-success');
+                }
+            } catch (error) {
+                console.error('Error checking loadsheet:', error);
+            }
+        }
+
+        async function downloadLoadsheet(loadNumber, format) {
+            const ext = format === 'pdf' ? '.pdf' : '.xlsx';
+            window.location.href = `${API_BASE}/api/paperwork/download/${loadNumber}${ext}`;
+        }
+
+        // Timesheet Functions
+        async function loadAvailableWeeks() {
+            try {
+                const response = await fetch(`${API_BASE}/api/paperwork/weeks`);
+                const data = await response.json();
+                
+                const weekSelect = document.getElementById('week-select');
+                
+                if (data.success && data.weeks.length > 0) {
+                    weekSelect.innerHTML = data.weeks.map(week => {
+                        const startDate = new Date(week.monday);
+                        const endDate = new Date(week.sunday);
+                        const label = `${startDate.toLocaleDateString('en-GB')} - ${endDate.toLocaleDateString('en-GB')} (${week.load_count} loads)`;
+                        const value = JSON.stringify({ monday: week.monday, sunday: week.sunday });
+                        return `<option value='${value}'>${label}</option>`;
+                    }).join('');
+                } else {
+                    weekSelect.innerHTML = '<option value="">No weeks with loads found</option>';
+                }
+            } catch (error) {
+                console.error('Error loading weeks:', error);
+                document.getElementById('week-select').innerHTML = '<option value="">Error loading weeks</option>';
+            }
+        }
+
+        async function generateTimesheet() {
+            try {
+                const weekSelect = document.getElementById('week-select');
+                const weekValue = weekSelect.value;
+                
+                if (!weekValue) {
+                    showAlert('Please select a week first', 'error');
+                    return;
+                }
+                
+                const weekData = JSON.parse(weekValue);
+                showAlert('Generating timesheet...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/paperwork/timesheet`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        start_date: weekData.monday,
+                        end_date: weekData.sunday
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Timesheet generated successfully!', 'success');
+                    if (data.xlsx_path) {
+                        const filename = data.xlsx_path.split('/').pop();
+                        window.location.href = `${API_BASE}/api/paperwork/download/${filename}`;
+                    }
+                } else {
+                    showAlert('Failed to generate timesheet: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Error generating timesheet: ' + error.message, 'error');
+            }
+        }
+
+        // ==================== Screen Control Functions ====================
+
+        async function loadScreenControlDevices() {
+            try {
+                const response = await fetch(`${API_BASE}/api/devices`);
+                const data = await response.json();
+                
+                const select = document.getElementById('screen-control-device');
+                
+                if (data.success && data.devices.length > 0) {
+                    const connectedDevices = data.devices.filter(d => d.connected);
+                    
+                    select.innerHTML = '<option value="">Select a device...</option>' +
+                        connectedDevices
+                            .map(d => `<option value="${d.address}">${d.name} (${d.address})</option>`)
+                            .join('');
+                    
+                    // Auto-select local device (127.0.0.1:5555) if available
+                    const localDevice = connectedDevices.find(d => d.address === '127.0.0.1:5555');
+                    if (localDevice) {
+                        select.value = localDevice.address;
+                        selectedDevice = localDevice.address;
+                        loadCredentials();
+                    }
+                    
+                    select.onchange = function() {
+                        selectedDevice = this.value;
+                        if (selectedDevice) {
+                            loadCredentials();
+                        }
+                    };
+                }
+            } catch (error) {
+                console.error('Error loading devices:', error);
+            }
+        }
+
+        async function captureScreenshot() {
+            if (!selectedDevice) {
+                selectedDevice = document.getElementById('screen-control-device').value;
+            }
+            
+            if (!selectedDevice) {
+                showAlert('Please select a device first', 'error');
+                return;
+            }
+            
+            try {
+                showAlert('Capturing screenshot...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(selectedDevice)}/screenshot`);
+                const data = await response.json();
+                
+                if (data.success && data.screenshot_base64) {
+                    const container = document.getElementById('screenshot-container');
+                    container.innerHTML = `<img src="${data.screenshot_base64}" alt="Device Screenshot" class="screenshot-fullscreen" onclick="viewFullscreen(this.src)">`;
+                    showAlert('Screenshot captured successfully', 'success');
+                } else {
+                    showAlert('Failed to capture screenshot: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showAlert('Error capturing screenshot: ' + error.message, 'error');
+            }
+        }
+
+        function viewFullscreen(src) {
+            const win = window.open('', '_blank');
+            win.document.write(`<html><head><title>Screenshot - Fullscreen</title></head><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;"><img src="${src}" style="max-width:100%;max-height:100%;object-fit:contain;"></body></html>`);
+        }
+
+        async function detectCurrentScreen() {
+            if (!selectedDevice) {
+                selectedDevice = document.getElementById('screen-control-device').value;
+            }
+            
+            if (!selectedDevice) {
+                showAlert('Please select a device first', 'error');
+                return;
+            }
+            
+            try {
+                showAlert('Detecting screen...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(selectedDevice)}/current-screen`);
+                const data = await response.json();
+                
+                if (data.success && data.screen) {
+                    document.getElementById('screen-detection-info').style.display = 'block';
+                    document.getElementById('detected-screen-name').textContent = data.screen;
+                    document.getElementById('detected-confidence').textContent = (data.confidence * 100).toFixed(1) + '%';
+                    showAlert(`Detected: ${data.screen} (${(data.confidence * 100).toFixed(1)}%)`, 'success');
+                } else if (data.success && !data.screen) {
+                    document.getElementById('screen-detection-info').style.display = 'none';
+                    showAlert('No screen detected', 'info');
+                } else {
+                    showAlert('Failed to detect screen: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showAlert('Error detecting screen: ' + error.message, 'error');
+            }
+        }
+
+        function toggleAutoScreenshot() {
+            const enabled = document.getElementById('auto-screenshot-toggle').checked;
+            
+            if (enabled) {
+                if (!selectedDevice) {
+                    selectedDevice = document.getElementById('screen-control-device').value;
+                }
+                
+                if (!selectedDevice) {
+                    showAlert('Please select a device first', 'error');
+                    document.getElementById('auto-screenshot-toggle').checked = false;
+                    return;
+                }
+                
+                autoScreenshotInterval = setInterval(() => {
+                    captureScreenshot();
+                }, 5000);
+                
+                captureScreenshot();
+                showAlert('Auto-screenshot enabled (5 seconds)', 'success');
+            } else {
+                if (autoScreenshotInterval) {
+                    clearInterval(autoScreenshotInterval);
+                    autoScreenshotInterval = null;
+                }
+                showAlert('Auto-screenshot disabled', 'info');
+            }
+        }
+
+        async function executeAutoLogin() {
+            if (!selectedDevice) {
+                selectedDevice = document.getElementById('screen-control-device').value;
+            }
+            
+            if (!selectedDevice) {
+                showAlert('Please select a device first', 'error');
+                return;
+            }
+            
+            try {
+                showAlert('Executing auto-login...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(selectedDevice)}/auto-login`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Auto-login completed successfully!', 'success');
+                } else {
+                    showAlert('Auto-login failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showAlert('Error executing auto-login: ' + error.message, 'error');
+            }
+        }
+
+        async function showCredentialsForm() {
+            if (!selectedDevice) {
+                selectedDevice = document.getElementById('screen-control-device').value;
+            }
+            
+            if (!selectedDevice) {
+                showAlert('Please select a device first', 'error');
+                return;
+            }
+            
+            document.getElementById('credentials-form').style.display = 'block';
+            loadCredentials();
+        }
+
+        function hideCredentialsForm() {
+            document.getElementById('credentials-form').style.display = 'none';
+        }
+
+        async function loadCredentials() {
+            if (!selectedDevice) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(selectedDevice)}/credentials`);
+                const data = await response.json();
+                
+                if (data.success && data.username) {
+                    document.getElementById('cred-username').value = data.username;
+                    document.getElementById('cred-password').value = '';
+                    document.getElementById('cred-password').placeholder = '••••••••';
+                } else {
+                    document.getElementById('cred-username').value = '';
+                    document.getElementById('cred-password').value = '';
+                    document.getElementById('cred-password').placeholder = 'Password';
+                }
+            } catch (error) {
+                console.error('Error loading credentials:', error);
+            }
+        }
+
+        async function saveCredentials() {
+            if (!selectedDevice) {
+                showAlert('Please select a device first', 'error');
+                return;
+            }
+            
+            const username = document.getElementById('cred-username').value;
+            const password = document.getElementById('cred-password').value;
+            
+            if (!username || !password) {
+                showAlert('Username and password are required', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(selectedDevice)}/credentials`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Credentials saved successfully!', 'success');
+                    document.getElementById('cred-password').value = '';
+                    document.getElementById('cred-password').placeholder = '••••••••';
+                } else {
+                    showAlert('Failed to save credentials: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showAlert('Error saving credentials: ' + error.message, 'error');
+            }
+        }
+
+        async function deleteCredentials() {
+            if (!selectedDevice) {
+                showAlert('Please select a device first', 'error');
+                return;
+            }
+            
+            if (!confirm('Delete stored credentials for this device?')) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(selectedDevice)}/credentials`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Credentials deleted successfully!', 'success');
+                    document.getElementById('cred-username').value = '';
+                    document.getElementById('cred-password').value = '';
+                    document.getElementById('cred-password').placeholder = 'Password';
+                } else {
+                    showAlert('Failed to delete credentials: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showAlert('Error deleting credentials: ' + error.message, 'error');
+            }
+        }
+
+        async function showMacroBuilder() {
+            document.getElementById('macros-list').style.display = 'block';
+            await loadMacros();
+        }
+
+        function hideMacroBuilder() {
+            document.getElementById('macros-list').style.display = 'none';
+        }
+
+        async function loadMacros() {
+            try {
+                const response = await fetch(`${API_BASE}/api/macros`);
+                const data = await response.json();
+                
+                const container = document.getElementById('macros-container');
+                
+                if (data.success && data.macros.length > 0) {
+                    container.innerHTML = data.macros.map(macro => `
+                        <div style="background: white; padding: 8px; margin: 6px 0; border-radius: 6px; border-left: 3px solid #667eea;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="flex: 1;">
+                                    <strong style="font-size: 0.95em;">${macro.name}</strong><br>
+                                    <span style="font-size: 0.8em; color: #666;">${macro.description || 'No description'}</span>
+                                </div>
+                                <button class="btn btn-success btn-sm" onclick="executeMacro(${macro.id})">▶️ Execute</button>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p style="color: #666;">No macros found. Create one to get started!</p>';
+                }
+            } catch (error) {
+                console.error('Error loading macros:', error);
+            }
+        }
+
+        async function executeMacro(macroId) {
+            if (!selectedDevice) {
+                selectedDevice = document.getElementById('screen-control-device').value;
+            }
+            
+            if (!selectedDevice) {
+                showAlert('Please select a device first', 'error');
+                return;
+            }
+            
+            try {
+                showAlert('Executing macro...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/macros/${macroId}/execute`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_address: selectedDevice })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert(`Macro executed: ${data.executed_actions}/${data.total_actions} actions completed`, 'success');
+                } else {
+                    showAlert('Macro execution failed', 'error');
+                }
+            } catch (error) {
+                showAlert('Error executing macro: ' + error.message, 'error');
+            }
+        }
+
+        function createNewMacro() {
+            const name = prompt('Enter macro name:');
+            if (!name) return;
+            
+            const description = prompt('Enter macro description:');
+            
+            showAlert('Use the API to create complex macros with custom actions', 'info');
+        }
+
+        async function showTemplates() {
+            document.getElementById('templates-list').style.display = 'block';
+            await loadTemplates();
+        }
+
+        function hideTemplates() {
+            document.getElementById('templates-list').style.display = 'none';
+        }
+
+        async function loadTemplates() {
+            try {
+                const response = await fetch(`${API_BASE}/api/templates`);
+                const data = await response.json();
+                
+                const container = document.getElementById('templates-container');
+                
+                if (data.success && data.templates.length > 0) {
+                    container.innerHTML = data.templates.map(template => `
+                        <div style="background: white; padding: 8px; margin: 6px 0; border-radius: 6px; border-left: 3px solid #764ba2;">
+                            <div>
+                                <strong style="font-size: 0.95em;">${template.name}</strong><br>
+                                <span style="font-size: 0.8em; color: #666;">
+                                    Threshold: ${(template.threshold * 100).toFixed(0)}% | Priority: ${template.priority}
+                                    ${template.linked_macros && template.linked_macros.length > 0 ? 
+                                        `<br>Linked macros: ${template.linked_macros.map(m => m.name).join(', ')}` : ''}
+                                </span>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p style="color: #666;">No templates found.</p>';
+                }
+            } catch (error) {
+                console.error('Error loading templates:', error);
+            }
+        }
+
+        // Map Modal Functions
+        function openMapModal(postcode) {
+            const modal = document.getElementById('mapModal');
+            const iframe = document.getElementById('map-iframe');
+            const title = document.getElementById('map-title');
+            
+            title.textContent = `📍 ${postcode}`;
+            iframe.src = `https://maps.google.com/maps?q=${encodeURIComponent(postcode)},UK&output=embed`;
+            
+            modal.style.display = 'block';
+        }
+
+        function closeMapModal() {
+            const modal = document.getElementById('mapModal');
+            const iframe = document.getElementById('map-iframe');
+            modal.style.display = 'none';
+            iframe.src = '';
+        }
+
+        window.addEventListener('click', function(event) {
+            const mapModal = document.getElementById('mapModal');
+            if (event.target == mapModal) {
+                closeMapModal();
+            }
+        });
+
+        // Vehicle Lookup Modal Functions
+        let currentLookupReg = null;
+
+        async function openVehicleLookupModal(registration, currentModel) {
+            currentLookupReg = registration;
+            const modal = document.getElementById('vehicleLookupModal');
+            
+            // Set registration display
+            document.getElementById('lookup-reg').textContent = registration;
+            document.getElementById('db-value').textContent = currentModel || 'Not set';
+            
+            // Show loading, hide results
+            document.getElementById('lookup-loading').style.display = 'block';
+            document.getElementById('lookup-results').style.display = 'none';
+            document.getElementById('lookup-error').style.display = 'none';
+            
+            modal.style.display = 'block';
+            
+            // Perform lookup
+            try {
+                const response = await fetch(`${API_BASE}/api/vehicles/lookup/${encodeURIComponent(registration)}`);
+                const data = await response.json();
+                
+                document.getElementById('lookup-loading').style.display = 'none';
+                document.getElementById('lookup-results').style.display = 'block';
+                
+                if (data.success) {
+                    // Show motorcheck result if available
+                    if (data.motorcheck && data.motorcheck.makeModel) {
+                        document.getElementById('motorcheck-result').style.display = 'block';
+                        document.getElementById('motorcheck-value').textContent = data.motorcheck.makeModel;
+                    } else {
+                        document.getElementById('motorcheck-result').style.display = 'none';
+                    }
+                    
+                    // Show override if exists
+                    if (data.override && data.override.make_model) {
+                        document.getElementById('override-result').style.display = 'block';
+                        document.getElementById('override-value').textContent = data.override.make_model;
+                        document.getElementById('override-date').textContent = new Date(data.override.created_at).toLocaleString();
+                        // Pre-fill the input with existing override
+                        document.getElementById('override-input').value = data.override.make_model;
+                    } else {
+                        document.getElementById('override-result').style.display = 'none';
+                        // If no override but we have motorcheck data, suggest it
+                        if (data.motorcheck && data.motorcheck.makeModel) {
+                            document.getElementById('override-input').value = data.motorcheck.makeModel;
+                        } else if (data.makeModel) {
+                            // Fallback to main makeModel field
+                            document.getElementById('override-input').value = data.makeModel;
+                        } else {
+                            document.getElementById('override-input').value = '';
+                        }
+                    }
+                } else {
+                    document.getElementById('lookup-error').style.display = 'block';
+                    document.getElementById('lookup-error').textContent = 'Failed to lookup vehicle: ' + (data.error || 'Unknown error');
+                }
+            } catch (error) {
+                document.getElementById('lookup-loading').style.display = 'none';
+                document.getElementById('lookup-error').style.display = 'block';
+                document.getElementById('lookup-error').textContent = 'Error: ' + error.message;
+            }
+        }
+
+        function closeVehicleLookupModal() {
+            document.getElementById('vehicleLookupModal').style.display = 'none';
+            currentLookupReg = null;
+        }
+
+        async function saveVehicleOverride() {
+            if (!currentLookupReg) {
+                showAlert('No registration selected', 'error');
+                return;
+            }
+            
+            const makeModel = document.getElementById('override-input').value.trim();
+            if (!makeModel) {
+                showAlert('Please enter a make and model', 'error');
+                return;
+            }
+            
+            // Save the registration before closing modal
+            const savedReg = currentLookupReg;
+            const dbValue = document.getElementById('db-value').textContent;
+            
+            try {
+                showAlert('Saving override...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/vehicles/override`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        registration: savedReg,
+                        make_model: makeModel
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Override saved successfully!', 'success');
+                    
+                    // Refresh the modal to show new override
+                    closeVehicleLookupModal();
+                    setTimeout(() => {
+                        openVehicleLookupModal(savedReg, dbValue);
+                    }, 300);
+                    
+                    // Refresh loads to show updated data
+                    setTimeout(() => {
+                        refreshLoads();
+                    }, 1000);
+                } else {
+                    showAlert('Failed to save override: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showAlert('Error saving override: ' + error.message, 'error');
+            }
+        }
+
+        // Close vehicle lookup modal on outside click
+        window.addEventListener('click', function(event) {
+            const vehicleModal = document.getElementById('vehicleLookupModal');
+            if (event.target == vehicleModal) {
+                closeVehicleLookupModal();
+            }
+        });
+
+        // ==================== Timesheet Entry Functions ====================
+        
+        function loadTimeEntryForm() {
+            const weekEndingInput = document.getElementById('time-week-select');
+            const weekEnding = weekEndingInput.value;
+            
+            if (!weekEnding) {
+                showAlert('Please select a week ending date (Sunday)', 'error');
+                return;
+            }
+            
+            // Calculate Monday (6 days before Sunday)
+            const sunday = new Date(weekEnding);
+            const monday = new Date(sunday);
+            monday.setDate(monday.getDate() - 6);
+            
+            // Show the grid
+            document.getElementById('time-entry-grid').style.display = 'block';
+            
+            // Generate rows for each day of the week
+            const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            const tbody = document.getElementById('time-entry-rows');
+            tbody.innerHTML = '';
+            
+            for (let i = 0; i < 7; i++) {
+                const date = new Date(monday);
+                date.setDate(date.getDate() + i);
+                const dateStr = date.toISOString().split('T')[0];
+                
+                const row = document.createElement('tr');
+                row.style.background = i % 2 === 0 ? '#f9fafb' : 'white';
+                row.innerHTML = `
+                    <td style="padding: 8px; font-weight: 500;">${daysOfWeek[i]}<br><span style="font-size: 0.8em; color: #666;">${date.toLocaleDateString('en-GB')}</span></td>
+                    <td style="padding: 8px; text-align: center;">
+                        <input type="time" id="start-${i}" class="btn" style="padding: 6px; background: white; width: 100px;" onchange="calculateDayHours(${i})">
+                    </td>
+                    <td style="padding: 8px; text-align: center;">
+                        <input type="time" id="finish-${i}" class="btn" style="padding: 6px; background: white; width: 100px;" onchange="calculateDayHours(${i})">
+                    </td>
+                    <td style="padding: 8px; text-align: center;" id="hours-${i}">0.00</td>
+                `;
+                tbody.appendChild(row);
+            }
+            
+            // Try to load existing entries
+            loadExistingTimeEntries(weekEnding);
+        }
+        
+        function calculateDayHours(dayIndex) {
+            const startInput = document.getElementById(`start-${dayIndex}`);
+            const finishInput = document.getElementById(`finish-${dayIndex}`);
+            const hoursCell = document.getElementById(`hours-${dayIndex}`);
+            
+            if (!startInput.value || !finishInput.value) {
+                hoursCell.textContent = '0.00';
+                calculateTotalHours();
+                return;
+            }
+            
+            // Parse times
+            const [startHour, startMin] = startInput.value.split(':').map(Number);
+            const [finishHour, finishMin] = finishInput.value.split(':').map(Number);
+            
+            // Calculate hours as decimal
+            const startDecimal = startHour + (startMin / 60);
+            const finishDecimal = finishHour + (finishMin / 60);
+            
+            let hours = finishDecimal - startDecimal;
+            
+            // Handle overnight shifts (not common but possible)
+            if (hours < 0) {
+                hours += 24;
+            }
+            
+            hoursCell.textContent = hours.toFixed(2);
+            calculateTotalHours();
+        }
+        
+        function calculateTotalHours() {
+            let total = 0;
+            for (let i = 0; i < 7; i++) {
+                const hoursCell = document.getElementById(`hours-${i}`);
+                if (hoursCell) {
+                    total += parseFloat(hoursCell.textContent) || 0;
+                }
+            }
+            document.getElementById('total-hours').textContent = total.toFixed(2);
+        }
+        
+        async function loadExistingTimeEntries(weekEnding) {
+            try {
+                const response = await fetch(`${API_BASE}/api/timesheet/entries?week_ending=${weekEnding}`);
+                const data = await response.json();
+                
+                if (data.success && data.entries && data.entries.length > 0) {
+                    // Populate form with existing data
+                    data.entries.forEach(entry => {
+                        const dayIndex = entry.day_index;
+                        if (dayIndex >= 0 && dayIndex < 7) {
+                            if (entry.start_time) {
+                                document.getElementById(`start-${dayIndex}`).value = entry.start_time;
+                            }
+                            if (entry.finish_time) {
+                                document.getElementById(`finish-${dayIndex}`).value = entry.finish_time;
+                            }
+                            calculateDayHours(dayIndex);
+                        }
+                    });
+                    showAlert('Loaded existing time entries', 'success');
+                }
+            } catch (error) {
+                console.error('Error loading time entries:', error);
+            }
+        }
+        
+        async function saveTimeEntries() {
+            const weekEndingInput = document.getElementById('time-week-select');
+            const weekEnding = weekEndingInput.value;
+            
+            if (!weekEnding) {
+                showAlert('Please select a week ending date first', 'error');
+                return;
+            }
+            
+            // Collect all entries
+            const entries = [];
+            for (let i = 0; i < 7; i++) {
+                const startInput = document.getElementById(`start-${i}`);
+                const finishInput = document.getElementById(`finish-${i}`);
+                const hoursCell = document.getElementById(`hours-${i}`);
+                
+                if (startInput && finishInput && (startInput.value || finishInput.value)) {
+                    entries.push({
+                        day_index: i,
+                        start_time: startInput.value || null,
+                        finish_time: finishInput.value || null,
+                        total_hours: parseFloat(hoursCell.textContent) || 0
+                    });
+                }
+            }
+            
+            if (entries.length === 0) {
+                showAlert('Please enter at least one time entry', 'error');
+                return;
+            }
+            
+            try {
+                showAlert('Saving time entries...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/timesheet/entries`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        week_ending: weekEnding,
+                        entries: entries
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert(`Time entries saved! (${data.saved_count} entries)`, 'success');
+                } else {
+                    showAlert('Failed to save time entries: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showAlert('Error saving time entries: ' + error.message, 'error');
+            }
+        }
+        
+        function clearTimeEntries() {
+            if (!confirm('Clear all time entries for this week?')) return;
+            
+            for (let i = 0; i < 7; i++) {
+                const startInput = document.getElementById(`start-${i}`);
+                const finishInput = document.getElementById(`finish-${i}`);
+                const hoursCell = document.getElementById(`hours-${i}`);
+                
+                if (startInput) startInput.value = '';
+                if (finishInput) finishInput.value = '';
+                if (hoursCell) hoursCell.textContent = '0.00';
+            }
+            
+            calculateTotalHours();
+            showAlert('Time entries cleared', 'info');
+        }
+    </script>
+</body>
+</html>
