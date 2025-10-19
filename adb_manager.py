@@ -8,6 +8,11 @@ import subprocess
 import os
 import sys
 import time
+import hashlib
+import shutil
+import tempfile
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 # Configuration
@@ -20,9 +25,51 @@ DEVICES = [
 APP_PACKAGE = "com.bca.bcatrack"
 APK_FOLDER = "apk"
 APK_FILENAME = "BCAApp.apk"
+APK_DOWNLOAD_URL = "https://nc.evoonline.co.uk/index.php/s/gWgDSy5nYZnygcC/download"
+APK_EXPECTED_SHA1 = "e37b6394bd95bf792c02de6b792ab2558a381548"
 DATA_FOLDER = "data"
 DEVICE_SQL_FILE = "/data/data/com.bca.bcatrack/cache/cache/data/sql.db"
 TEMP_SQL_FILE = "/sdcard/sql.db"
+
+
+def _compute_sha1(file_path):
+    """Return the SHA1 hex digest for the given file."""
+    sha1 = hashlib.sha1()
+    with open(file_path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            sha1.update(chunk)
+    return sha1.hexdigest()
+
+
+def _download_apk(destination, url=APK_DOWNLOAD_URL, expected_sha1=APK_EXPECTED_SHA1):
+    """Download the APK from the shared Nextcloud link."""
+    temp_path = None
+    try:
+        with urllib.request.urlopen(url, timeout=60) as response, tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+            shutil.copyfileobj(response, tmp_file)
+            temp_path = tmp_file.name
+
+        if expected_sha1:
+            downloaded_sha1 = _compute_sha1(temp_path)
+            if downloaded_sha1.lower() != expected_sha1.lower():
+                print(f"❌ Downloaded APK failed checksum validation (expected {expected_sha1}, got {downloaded_sha1})")
+                os.remove(temp_path)
+                return False
+
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        os.replace(temp_path, destination)
+        print(f"✅ Downloaded APK to {destination}")
+        return True
+
+    except urllib.error.URLError as error:
+        print(f"❌ Failed to download APK (network error): {error.reason or error}")
+    except Exception as exc:
+        print(f"❌ Failed to download APK: {exc}")
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
+
+    return False
 
 
 class ADBDevice:
@@ -517,11 +564,28 @@ class ADBManager:
     
     def get_apk_path(self):
         """Get the APK file path"""
-        # Create apk folder if it doesn't exist
         os.makedirs(APK_FOLDER, exist_ok=True)
-        
         apk_path = os.path.join(APK_FOLDER, APK_FILENAME)
-        return apk_path
+
+        if os.path.exists(apk_path):
+            if os.path.getsize(apk_path) == 0:
+                print(f"⚠️  Found empty APK file at {apk_path}, re-downloading...")
+                os.remove(apk_path)
+            elif APK_EXPECTED_SHA1:
+                existing_sha1 = _compute_sha1(apk_path)
+                if existing_sha1.lower() == APK_EXPECTED_SHA1.lower():
+                    return apk_path
+                print("⚠️  Existing APK checksum mismatch; downloading a fresh copy...")
+                os.remove(apk_path)
+            else:
+                return apk_path
+
+        print(f"🌐 Downloading {APK_FILENAME} from shared storage...")
+        if _download_apk(apk_path):
+            return apk_path
+
+        print(f"❌ Unable to obtain {APK_FILENAME}. Download it manually from {APK_DOWNLOAD_URL} and place it in '{APK_FOLDER}/'.")
+        return None
     
     def install_app_on_device(self, device_index, reinstall=False):
         """Install app on a specific device"""
@@ -532,9 +596,8 @@ class ADBManager:
         device = self.devices[device_index - 1]
         apk_path = self.get_apk_path()
         
-        if not os.path.exists(apk_path):
-            print(f"❌ APK file not found: {apk_path}")
-            print(f"ℹ️  Please place {APK_FILENAME} in the '{APK_FOLDER}' folder")
+        if not apk_path or not os.path.exists(apk_path):
+            print(f"❌ APK file not available for installation.")
             return False
         
         return device.install_app(apk_path, reinstall)
@@ -543,9 +606,8 @@ class ADBManager:
         """Install app on all connected devices"""
         apk_path = self.get_apk_path()
         
-        if not os.path.exists(apk_path):
-            print(f"❌ APK file not found: {apk_path}")
-            print(f"ℹ️  Please place {APK_FILENAME} in the '{APK_FOLDER}' folder")
+        if not apk_path or not os.path.exists(apk_path):
+            print(f"❌ APK file not available for installation.")
             return
         
         connected = [d for d in self.devices if d.connected]
