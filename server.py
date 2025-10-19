@@ -1936,9 +1936,28 @@ if __name__ == '__main__':
     os.makedirs("static", exist_ok=True)
     os.makedirs(DATA_FOLDER, exist_ok=True)
     
-    # Initialize screen_control database if it doesn't exist
+    # Initialize screen_control database if it doesn't exist or is missing tables
     screen_control_db_path = "data/screen_control.db"
+    needs_init = False
+    
     if not os.path.exists(screen_control_db_path):
+        app.logger.info("Screen control database not found, will initialize...")
+        needs_init = True
+    else:
+        # Check if required tables exist
+        try:
+            conn = sqlite3.connect(screen_control_db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='vehicle_overrides'")
+            if not cursor.fetchone():
+                app.logger.warning("Database exists but missing tables, will reinitialize...")
+                needs_init = True
+            conn.close()
+        except Exception as e:
+            app.logger.warning(f"Error checking database tables: {e}, will reinitialize...")
+            needs_init = True
+    
+    if needs_init:
         app.logger.info("Initializing screen_control database...")
         try:
             init_screen_control_db.init_database()
@@ -1946,7 +1965,7 @@ if __name__ == '__main__':
         except Exception as e:
             app.logger.error(f"✗ Failed to initialize screen_control database: {e}")
     else:
-        app.logger.info("✓ Screen control database found")
+        app.logger.info("✓ Screen control database found and valid")
     
     # Auto-connect to all configured devices on startup
     app.logger.info("Auto-connecting to configured devices...")
