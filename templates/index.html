@@ -844,11 +844,13 @@
                     </p>
                     
                     <div style="background: #e0e7ff; padding: 12px; border-radius: 6px; margin-bottom: 12px;">
-                        <label for="time-week-select" style="display: block; margin-bottom: 6px; font-weight: 500;">
+                        <label for="time-week-select" style="display: block; margin-bottom: 6px; font-weight: 500; color: #333;">
                             Week Ending (Sunday):
                         </label>
                         <input type="date" id="time-week-select" 
-                               style="width: 100%; padding: 8px; background: white; text-align: left; border: 1px solid #e5e7eb; border-radius: 6px; font-family: inherit; cursor: pointer;">
+                               style="width: 100%; padding: 10px; background: white; border: 2px solid #667eea; border-radius: 6px; 
+                                      font-size: 1em; color: #333; font-family: inherit; cursor: pointer;"
+                               onchange="this.style.color='#333'">
                     </div>
                     
                     <div id="time-entry-grid" style="display: none;">
@@ -1055,6 +1057,74 @@
             </div>
         </div>
 
+        <!-- Load Date Change Modal -->
+        <div id="changeDateModal" class="modal">
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h2>📅 Change Load Date</h2>
+                    <span class="close" onclick="closeChangeDateModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div style="margin-bottom: 15px;">
+                        <strong>Load Number:</strong> <span id="change-date-load-number" style="font-size: 1.2em; color: #667eea;"></span>
+                    </div>
+                    
+                    <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+                        <strong>Current Date:</strong><br>
+                        <span id="change-date-current" style="color: #666;">-</span>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 6px; font-weight: 500; color: #333;">New Date:</label>
+                        <input type="date" id="change-date-input" 
+                               style="width: 100%; padding: 10px; background: white; border: 2px solid #e5e7eb; border-radius: 6px; 
+                                      font-size: 1em; color: #333; font-family: inherit; cursor: pointer;"
+                               onchange="this.style.color='#333'">
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button class="btn btn-success" onclick="saveLoadDateOverride()" style="flex: 1;">
+                            💾 Save Date Override
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteLoadDateOverride()" style="flex: 1;">
+                            🗑️ Remove Override
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Load Note Modal -->
+        <div id="loadNoteModal" class="modal">
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2>📝 Load Note</h2>
+                    <span class="close" onclick="closeLoadNoteModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div style="margin-bottom: 15px;">
+                        <strong>Load Number:</strong> <span id="load-note-load-number" style="font-size: 1.2em; color: #667eea;"></span>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 6px; font-weight: 500;">Note (will appear on loadsheet):</label>
+                        <textarea id="load-note-input" class="btn" rows="6"
+                                  style="width: 100%; padding: 10px; background: white; text-align: left; resize: vertical; font-family: inherit;"
+                                  placeholder="Enter note to appear on loadsheet after keys/docs count..."></textarea>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button class="btn btn-success" onclick="saveLoadNote()" style="flex: 1;">
+                            💾 Save Note
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteLoadNote()" style="flex: 1;">
+                            🗑️ Delete Note
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Vehicle Lookup Modal -->
         <div id="vehicleLookupModal" class="modal">
             <div class="modal-content" style="max-width: 600px;">
@@ -1198,6 +1268,7 @@
                                 `<button class="btn btn-danger btn-sm" onclick="deleteSQLFromDevice('${device.address}')">🗑️ Delete SQL</button>` :
                                 `<button class="btn btn-danger btn-sm" disabled title="App must be installed and stopped">🗑️ Delete SQL</button>`
                             }
+                            <button class="btn btn-sm" id="slave-mode-${device.address}" onclick="toggleSlaveMode('${device.address}')">📱 Slave Mode</button>
                         </div>
                     ` : ''}
                 </div>
@@ -1352,6 +1423,59 @@
                 }
             } catch (error) {
                 showAlert('Error connecting devices: ' + error.message, 'error');
+            }
+        }
+
+        async function toggleSlaveMode(address) {
+            try {
+                // First check current status
+                const statusResponse = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(address)}/slave-mode`);
+                const statusData = await statusResponse.json();
+                
+                if (!statusData.success) {
+                    showAlert('Failed to get slave mode status', 'error');
+                    return;
+                }
+                
+                const currentlyEnabled = statusData.enabled;
+                
+                if (currentlyEnabled) {
+                    // Disable slave mode
+                    if (!confirm('Disable slave mode? Phone will return to normal sleep behavior.')) return;
+                    
+                    showAlert('Disabling slave mode...', 'info');
+                    const response = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(address)}/slave-mode`, {
+                        method: 'DELETE'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showAlert('Slave mode disabled', 'success');
+                        setTimeout(refreshDevices, 1000);
+                    } else {
+                        showAlert('Failed to disable slave mode: ' + data.error, 'error');
+                    }
+                } else {
+                    // Enable slave mode
+                    if (!confirm('Enable slave mode? Phone will stay awake with screen off, unlocked.')) return;
+                    
+                    showAlert('Enabling slave mode...', 'info');
+                    const response = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(address)}/slave-mode`, {
+                        method: 'POST'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showAlert('Slave mode enabled! Phone is now controlled.', 'success');
+                        setTimeout(refreshDevices, 1000);
+                    } else {
+                        showAlert('Failed to enable slave mode: ' + data.error, 'error');
+                    }
+                }
+            } catch (error) {
+                showAlert('Error toggling slave mode: ' + error.message, 'error');
             }
         }
 
@@ -1576,6 +1700,12 @@
                         <button id="download-pdf-${load.load_number}" class="btn btn-secondary btn-sm" 
                                 onclick="downloadLoadsheet('${load.load_number}', 'pdf')" disabled>
                             📥 Download PDF
+                        </button>
+                        <button class="btn btn-sm" onclick="openChangeDateModal('${load.load_number}', '${load.earliest_date_formatted || ''}')">
+                            📅 Change Date
+                        </button>
+                        <button class="btn btn-sm" onclick="openLoadNoteModal('${load.load_number}')">
+                            📝 LOAD NOTE
                         </button>
                     </div>
                 </div>
@@ -2520,6 +2650,186 @@
             }
         });
 
+        // ==================== Load Date Override Functions ====================
+        
+        let currentOverrideLoadNumber = null;
+        
+        function openChangeDateModal(loadNumber, currentDate) {
+            currentOverrideLoadNumber = loadNumber;
+            const modal = document.getElementById('changeDateModal');
+            
+            document.getElementById('change-date-load-number').textContent = loadNumber;
+            document.getElementById('change-date-current').textContent = currentDate || 'Not set';
+            document.getElementById('change-date-input').value = '';
+            
+            modal.style.display = 'block';
+        }
+        
+        function closeChangeDateModal() {
+            document.getElementById('changeDateModal').style.display = 'none';
+            currentOverrideLoadNumber = null;
+        }
+        
+        async function saveLoadDateOverride() {
+            if (!currentOverrideLoadNumber) {
+                showAlert('No load selected', 'error');
+                return;
+            }
+            
+            const newDate = document.getElementById('change-date-input').value;
+            if (!newDate) {
+                showAlert('Please select a new date', 'error');
+                return;
+            }
+            
+            try {
+                showAlert('Saving date override...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/loads/${encodeURIComponent(currentOverrideLoadNumber)}/date-override`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        override_date: newDate,
+                        original_date: document.getElementById('change-date-current').textContent
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Date override saved successfully!', 'success');
+                    closeChangeDateModal();
+                    setTimeout(() => refreshLoads(), 500);
+                } else {
+                    showAlert('Failed to save date override: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showAlert('Error saving date override: ' + error.message, 'error');
+            }
+        }
+        
+        async function deleteLoadDateOverride() {
+            if (!currentOverrideLoadNumber) {
+                showAlert('No load selected', 'error');
+                return;
+            }
+            
+            if (!confirm('Remove date override for this load?')) return;
+            
+            try {
+                showAlert('Removing date override...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/loads/${encodeURIComponent(currentOverrideLoadNumber)}/date-override`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Date override removed successfully!', 'success');
+                    closeChangeDateModal();
+                    setTimeout(() => refreshLoads(), 500);
+                } else {
+                    showAlert('Failed to remove date override: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showAlert('Error removing date override: ' + error.message, 'error');
+            }
+        }
+        
+        // ==================== Load Note Functions ====================
+        
+        let currentNoteLoadNumber = null;
+        
+        async function openLoadNoteModal(loadNumber) {
+            currentNoteLoadNumber = loadNumber;
+            const modal = document.getElementById('loadNoteModal');
+            
+            document.getElementById('load-note-load-number').textContent = loadNumber;
+            document.getElementById('load-note-input').value = '';
+            
+            modal.style.display = 'block';
+            
+            // Try to load existing note
+            try {
+                const response = await fetch(`${API_BASE}/api/loads/${encodeURIComponent(loadNumber)}/note`);
+                const data = await response.json();
+                
+                if (data.success && data.has_note) {
+                    document.getElementById('load-note-input').value = data.note_text;
+                }
+            } catch (error) {
+                console.error('Error loading note:', error);
+            }
+        }
+        
+        function closeLoadNoteModal() {
+            document.getElementById('loadNoteModal').style.display = 'none';
+            currentNoteLoadNumber = null;
+        }
+        
+        async function saveLoadNote() {
+            if (!currentNoteLoadNumber) {
+                showAlert('No load selected', 'error');
+                return;
+            }
+            
+            const noteText = document.getElementById('load-note-input').value.trim();
+            if (!noteText) {
+                showAlert('Please enter a note', 'error');
+                return;
+            }
+            
+            try {
+                showAlert('Saving note...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/loads/${encodeURIComponent(currentNoteLoadNumber)}/note`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note_text: noteText })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Note saved successfully!', 'success');
+                    closeLoadNoteModal();
+                } else {
+                    showAlert('Failed to save note: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showAlert('Error saving note: ' + error.message, 'error');
+            }
+        }
+        
+        async function deleteLoadNote() {
+            if (!currentNoteLoadNumber) {
+                showAlert('No load selected', 'error');
+                return;
+            }
+            
+            if (!confirm('Delete note for this load?')) return;
+            
+            try {
+                showAlert('Deleting note...', 'info');
+                
+                const response = await fetch(`${API_BASE}/api/loads/${encodeURIComponent(currentNoteLoadNumber)}/note`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Note deleted successfully!', 'success');
+                    closeLoadNoteModal();
+                } else {
+                    showAlert('Failed to delete note: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showAlert('Error deleting note: ' + error.message, 'error');
+            }
+        }
+        
         // ==================== Timesheet Entry Functions ====================
         
         function loadTimeEntryForm() {

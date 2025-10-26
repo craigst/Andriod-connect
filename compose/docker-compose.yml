@@ -1,6 +1,9 @@
 services:
   adb-device-manager:
-    image: ghcr.io/craigst/andriod-connect:${IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: compose/Dockerfile
+    image: adb-device-manager:local
     container_name: adb-device-manager
     restart: unless-stopped
     network_mode: host

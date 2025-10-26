@@ -17,6 +17,40 @@ TEMPLATES_DIR = "screen_templates"
 SCREENSHOTS_DIR = "screenshots"
 
 
+def get_device_resolution(device_address: str) -> Optional[Tuple[int, int]]:
+    """
+    Get device screen resolution via ADB
+    
+    Args:
+        device_address: ADB device address
+    
+    Returns:
+        Tuple of (width, height) or None if failed
+    """
+    try:
+        import subprocess
+        
+        result = subprocess.run(
+            ['adb', '-s', device_address, 'shell', 'wm', 'size'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        if result.returncode == 0:
+            # Output format: "Physical size: 1440x2560"
+            output = result.stdout.strip()
+            if 'Physical size:' in output:
+                size_str = output.split('Physical size:')[1].strip()
+                width, height = map(int, size_str.split('x'))
+                return (width, height)
+        
+        return None
+    except Exception as e:
+        print(f"Error getting device resolution: {e}")
+        return None
+
+
 def load_templates_from_db() -> List[Dict]:
     """Load template definitions from database"""
     try:
@@ -93,24 +127,100 @@ def match_template(screenshot_path: str, template_path: str, threshold: float = 
                     'width': int(template_w),
                     'height': int(template_h)
                 },
-                'matched': True
+                'matched': True,
+                'scale': 1.0
             }
         else:
             return {
                 'confidence': float(max_val),
-                'matched': False
+                'matched': False,
+                'scale': 1.0
             }
     except Exception as e:
         print(f"Error matching template: {e}")
         return None
 
 
-def detect_current_screen(screenshot_path: str) -> Optional[Dict]:
+def match_template_multiscale(screenshot_path: str, template_path: str, threshold: float = 0.7, 
+                               scales: List[float] = None) -> Optional[Dict]:
+    """
+    Match a template against a screenshot using multi-scale template matching
+    
+    Args:
+        screenshot_path: Path to screenshot image
+        template_path: Path to template image
+        threshold: Confidence threshold (0.0-1.0)
+        scales: List of scales to try (default: [0.8, 0.9, 1.0, 1.1, 1.2])
+    
+    Returns:
+        Dict with best match info or None if no match
+    """
+    if scales is None:
+        scales = [0.8, 0.9, 1.0, 1.1, 1.2]
+    
+    try:
+        # Load images
+        screenshot = cv2.imread(screenshot_path)
+        template_orig = cv2.imread(template_path)
+        
+        if screenshot is None or template_orig is None:
+            return None
+        
+        # Convert screenshot to grayscale once
+        screenshot_gray = cv2.cvtColor(screenshot, cv2.COLOR_BGR2GRAY)
+        
+        best_match = None
+        best_confidence = 0.0
+        
+        # Try each scale
+        for scale in scales:
+            # Scale template
+            template_h, template_w = template_orig.shape[:2]
+            new_h, new_w = int(template_h * scale), int(template_w * scale)
+            
+            # Skip if scaled template is larger than screenshot
+            if new_h > screenshot.shape[0] or new_w > screenshot.shape[1]:
+                continue
+            
+            # Resize template
+            template_resized = cv2.resize(template_orig, (new_w, new_h), interpolation=cv2.INTER_AREA)
+            template_gray = cv2.cvtColor(template_resized, cv2.COLOR_BGR2GRAY)
+            
+            # Perform template matching
+            result = cv2.matchTemplate(screenshot_gray, template_gray, cv2.TM_CCOEFF_NORMED)
+            
+            # Get best match for this scale
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+            
+            # Update best match if this is better
+            if max_val > best_confidence:
+                best_confidence = max_val
+                best_match = {
+                    'confidence': float(max_val),
+                    'location': {
+                        'x': int(max_loc[0]),
+                        'y': int(max_loc[1]),
+                        'width': new_w,
+                        'height': new_h
+                    },
+                    'scale': scale,
+                    'matched': max_val >= threshold
+                }
+        
+        return best_match
+    except Exception as e:
+        print(f"Error in multi-scale template matching: {e}")
+        return None
+
+
+def detect_current_screen(screenshot_path: str, threshold: float = None, use_multiscale: bool = True) -> Optional[Dict]:
     """
     Detect which screen is currently displayed
     
     Args:
         screenshot_path: Path to screenshot image
+        threshold: Optional custom confidence threshold (overrides template defaults)
+        use_multiscale: Whether to use multi-scale template matching (default: True)
     
     Returns:
         Dict with detection results or None
@@ -128,11 +238,22 @@ def detect_current_screen(screenshot_path: str) -> Optional[Dict]:
         # Try to match each template (ordered by priority)
         matches = []
         for template in templates:
-            match_result = match_template(
-                screenshot_path, 
-                template['path'], 
-                template['threshold']
-            )
+            # Use custom threshold if provided, otherwise use template default
+            match_threshold = threshold if threshold is not None else template['threshold']
+            
+            # Choose matching method
+            if use_multiscale:
+                match_result = match_template_multiscale(
+                    screenshot_path, 
+                    template['path'], 
+                    match_threshold
+                )
+            else:
+                match_result = match_template(
+                    screenshot_path, 
+                    template['path'], 
+                    match_threshold
+                )
             
             if match_result and match_result['matched']:
                 matches.append({
@@ -140,7 +261,8 @@ def detect_current_screen(screenshot_path: str) -> Optional[Dict]:
                     'template_name': template['name'],
                     'confidence': match_result['confidence'],
                     'location': match_result['location'],
-                    'priority': template['priority']
+                    'priority': template['priority'],
+                    'scale': match_result.get('scale', 1.0)
                 })
         
         # Return best match (highest priority and confidence)
@@ -155,6 +277,7 @@ def detect_current_screen(screenshot_path: str) -> Optional[Dict]:
                 'template_id': best_match['template_id'],
                 'confidence': best_match['confidence'],
                 'location': best_match['location'],
+                'scale': best_match['scale'],
                 'all_matches': matches
             }
         else:

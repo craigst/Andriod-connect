@@ -43,11 +43,81 @@ def execute_swipe(device_address: str, x1: int, y1: int, x2: int, y2: int, durat
     )
 
 
-def execute_text(device_address: str, text: str) -> bool:
-    """Execute text input"""
-    # Escape special characters
-    escaped_text = text.replace(' ', '%s').replace('&', '\\&')
-    return execute_adb_command(device_address, ['shell', 'input', 'text', escaped_text])
+def execute_text(device_address: str, text: str, delay_ms: int = 150) -> bool:
+    """
+    Execute text input character-by-character with delays
+    
+    Args:
+        device_address: ADB device address
+        text: Text to input
+        delay_ms: Delay between characters in milliseconds (default: 150ms)
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Type each character individually with delay
+        for char in text:
+            # Handle special characters
+            if char == ' ':
+                escaped_char = '%s'
+            elif char == '&':
+                escaped_char = '\\&'
+            elif char == '"':
+                escaped_char = '\\"'
+            elif char == "'":
+                escaped_char = "\\'"
+            elif char == '`':
+                escaped_char = '\\`'
+            elif char == '$':
+                escaped_char = '\\$'
+            elif char == '(':
+                escaped_char = '\\('
+            elif char == ')':
+                escaped_char = '\\)'
+            else:
+                escaped_char = char
+            
+            # Send character
+            success = execute_adb_command(device_address, ['shell', 'input', 'text', escaped_char])
+            
+            if not success:
+                print(f"Failed to input character: {char}")
+                return False
+            
+            # Delay between characters
+            if delay_ms > 0:
+                time.sleep(delay_ms / 1000.0)
+        
+        return True
+    except Exception as e:
+        print(f"Error executing text input: {e}")
+        return False
+
+
+def execute_text_with_retry(device_address: str, text: str, delay_ms: int = 150, max_retries: int = 2) -> bool:
+    """
+    Execute text input with retry logic
+    
+    Args:
+        device_address: ADB device address
+        text: Text to input
+        delay_ms: Delay between characters in milliseconds
+        max_retries: Maximum number of retry attempts
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    for attempt in range(max_retries + 1):
+        if execute_text(device_address, text, delay_ms):
+            return True
+        
+        if attempt < max_retries:
+            print(f"Text input failed, retrying ({attempt + 1}/{max_retries})...")
+            time.sleep(0.5)
+    
+    print(f"Text input failed after {max_retries + 1} attempts")
+    return False
 
 
 def execute_keyevent(device_address: str, keycode: int) -> bool:
@@ -81,18 +151,70 @@ def execute_wait(seconds: float) -> bool:
         return False
 
 
-def execute_action(device_address: str, action: Dict) -> bool:
+def get_device_settings(device_address: str) -> Dict:
+    """
+    Get device settings from database
+    
+    Args:
+        device_address: ADB device address
+    
+    Returns:
+        Dict with device settings or defaults
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT match_threshold, keystroke_delay_ms, post_login_wait_seconds
+            FROM device_settings
+            WHERE device_address = ?
+        """, (device_address,))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return {
+                'match_threshold': row['match_threshold'],
+                'keystroke_delay_ms': row['keystroke_delay_ms'],
+                'post_login_wait_seconds': row['post_login_wait_seconds']
+            }
+        else:
+            # Return defaults
+            return {
+                'match_threshold': 0.7,
+                'keystroke_delay_ms': 150,
+                'post_login_wait_seconds': 4
+            }
+    except Exception as e:
+        print(f"Error getting device settings: {e}")
+        # Return defaults on error
+        return {
+            'match_threshold': 0.7,
+            'keystroke_delay_ms': 150,
+            'post_login_wait_seconds': 4
+        }
+
+
+def execute_action(device_address: str, action: Dict, device_settings: Dict = None) -> bool:
     """
     Execute a single action
     
     Args:
         device_address: ADB device address
         action: Dict with action type and parameters
+        device_settings: Optional device settings dict (will fetch if not provided)
     
     Returns:
         True if successful, False otherwise
     """
     action_type = action.get('type')
+    
+    # Get device settings if not provided
+    if device_settings is None:
+        device_settings = get_device_settings(device_address)
     
     if action_type == 'tap':
         return execute_tap(device_address, action['x'], action['y'])
@@ -107,7 +229,14 @@ def execute_action(device_address: str, action: Dict) -> bool:
         )
     
     elif action_type == 'text':
-        return execute_text(device_address, action['value'])
+        # Use device-specific keystroke delay
+        delay_ms = action.get('delay_ms', device_settings['keystroke_delay_ms'])
+        use_retry = action.get('retry', True)
+        
+        if use_retry:
+            return execute_text_with_retry(device_address, action['value'], delay_ms)
+        else:
+            return execute_text(device_address, action['value'], delay_ms)
     
     elif action_type == 'keyevent':
         return execute_keyevent(device_address, action['code'])
@@ -149,11 +278,14 @@ def execute_macro(device_address: str, actions: List[Dict]) -> Dict:
         'execution_log': []
     }
     
+    # Get device settings once for all actions
+    device_settings = get_device_settings(device_address)
+    
     for i, action in enumerate(actions):
         action_type = action.get('type', 'unknown')
         
         try:
-            success = execute_action(device_address, action)
+            success = execute_action(device_address, action, device_settings)
             
             if success:
                 results['executed_actions'] += 1

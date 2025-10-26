@@ -13,6 +13,7 @@ A comprehensive Flask-based web application for managing Android devices via ADB
 - **REST API**: Full-featured API for automation and integration
 - **Web UI**: User-friendly web interface for manual operations
 - **Docker Support**: Easy deployment with Docker/Podman
+- **🤖 AI Integration (MCP Server)**: Natural language control via Cline/Claude - "Generate paperwork for all loads this week"
 
 ## 📋 Table of Contents
 

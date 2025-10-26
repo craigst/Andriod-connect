@@ -165,13 +165,19 @@ def generate_timesheet(json_data) -> tuple:
         logger.error("Failed to process JSON data")
         return None, None
 
+    # Count days worked (unique dates with loads)
+    days_worked = len(loads_by_day)
+    days_code = f"_D{days_worked}" if days_worked > 0 else ""
+    
+    logger.info(f"Days worked: {days_worked} ({list(loads_by_day.keys())})")
+    
     # Determine output folder based on week ending date (Sunday)
     folder_date = format_folder_date(week_end_date)
     output_folder = os.path.join("/app/paperwork", folder_date)
     os.makedirs(output_folder, exist_ok=True)
 
-    # Create filename: timesheet_weekending.xlsx
-    filename = f"timesheet_{week_end_date.strftime('%Y-%m-%d')}"
+    # Create filename: timesheet_weekending_D#.xlsx
+    filename = f"timesheet_{week_end_date.strftime('%Y-%m-%d')}{days_code}"
     excel_output_path = os.path.join(output_folder, f"{filename}.xlsx")
     pdf_output_path = os.path.join(output_folder, f"{filename}.pdf")
 

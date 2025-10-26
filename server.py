@@ -650,6 +650,152 @@ def delete_sql_on_device(address):
         }), 500
 
 
+@app.route('/api/devices/<path:address>/slave-mode', methods=['GET', 'POST', 'DELETE'])
+def manage_slave_mode(address):
+    """Manage slave mode for device (keep awake with screen off)"""
+    try:
+        # Find device by address
+        device = None
+        for d in adb_manager.devices:
+            if d.address == address:
+                device = d
+                break
+        
+        if not device:
+            return jsonify({
+                'success': False,
+                'error': 'Device not found'
+            }), 404
+        
+        if request.method == 'GET':
+            # Get current slave mode status
+            status = device.get_slave_mode_status()
+            
+            return jsonify({
+                'success': True,
+                'enabled': status.get('enabled', False),
+                'screen_timeout': status.get('screen_timeout'),
+                'stay_awake': status.get('stay_awake'),
+                'device': device.name,
+                'address': device.address
+            })
+        
+        elif request.method == 'POST':
+            # Enable slave mode
+            result = device.enable_slave_mode()
+            
+            if result:
+                return jsonify({
+                    'success': True,
+                    'message': f'Slave mode enabled on {device.name}',
+                    'enabled': True
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': f'Failed to enable slave mode on {device.name}'
+                }), 500
+        
+        elif request.method == 'DELETE':
+            # Disable slave mode
+            result = device.disable_slave_mode()
+            
+            if result:
+                return jsonify({
+                    'success': True,
+                    'message': f'Slave mode disabled on {device.name}',
+                    'enabled': False
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': f'Failed to disable slave mode on {device.name}'
+                }), 500
+            
+    except Exception as e:
+        app.logger.error(f"Error managing slave mode: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/devices/<path:address>/screen/wake', methods=['POST'])
+def wake_device_screen(address):
+    """Wake device screen (while keeping slave mode if enabled)"""
+    try:
+        # Find device by address
+        device = None
+        for d in adb_manager.devices:
+            if d.address == address:
+                device = d
+                break
+        
+        if not device:
+            return jsonify({
+                'success': False,
+                'error': 'Device not found'
+            }), 404
+        
+        result = device.wake_screen()
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'message': f'Screen woken on {device.name}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to wake screen on {device.name}'
+            }), 500
+            
+    except Exception as e:
+        app.logger.error(f"Error waking screen: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/devices/<path:address>/screen/sleep', methods=['POST'])
+def sleep_device_screen(address):
+    """Turn off device screen (while keeping device awake if in slave mode)"""
+    try:
+        # Find device by address
+        device = None
+        for d in adb_manager.devices:
+            if d.address == address:
+                device = d
+                break
+        
+        if not device:
+            return jsonify({
+                'success': False,
+                'error': 'Device not found'
+            }), 404
+        
+        result = device.sleep_screen()
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'message': f'Screen turned off on {device.name}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to turn off screen on {device.name}'
+            }), 500
+            
+    except Exception as e:
+        app.logger.error(f"Error sleeping screen: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/api/sql/pull', methods=['POST'])
 def pull_sql():
     """Pull SQL file from a device"""
@@ -1621,33 +1767,429 @@ def manage_template_macro_link(template_id, macro_id):
 # Auto-Login
 @app.route('/api/devices/<path:address>/auto-login', methods=['POST'])
 def auto_login(address):
-    """Execute auto-login on device"""
+    """Execute enhanced auto-login on device with screen detection"""
     try:
         # Get credentials
         creds = credentials_manager.get_credentials(address)
-        
+
         if not creds:
             return jsonify({
                 'success': False,
                 'error': 'No credentials found for this device'
             }), 404
+
+        # Get device settings for delays
+        device_settings = screen_macros.get_device_settings(address)
+        keystroke_delay = device_settings['keystroke_delay_ms']
+        post_login_wait = device_settings['post_login_wait_seconds']
         
-        # Build login macro actions
+        app.logger.info(f"Starting enhanced auto-login for {address}")
+        app.logger.info(f"Using keystroke delay: {keystroke_delay}ms, post-login wait: {post_login_wait}s")
+        
+        # Step 1: Check current screen and handle bionag if present
+        current_screen = screen_detector.detect_current_screen(address)
+        
+        if current_screen and 'bionag' in current_screen.lower():
+            app.logger.info("Bionag detected, dismissing...")
+            # Dismiss bionag with back button
+            dismiss_actions = [
+                {"type": "back"},
+                {"type": "wait", "seconds": 1}
+            ]
+            screen_macros.execute_macro(address, dismiss_actions)
+            
+            # Re-check screen after dismissal
+            current_screen = screen_detector.detect_current_screen(address)
+        
+        # Step 2: Wait for login screen
+        max_retries = 3
+        for attempt in range(max_retries):
+            current_screen = screen_detector.detect_current_screen(address)
+            
+            if current_screen and 'login' in current_screen.lower():
+                app.logger.info(f"Login screen detected on attempt {attempt + 1}")
+                break
+            
+            if attempt < max_retries - 1:
+                app.logger.info(f"Login screen not detected, waiting... (attempt {attempt + 1}/{max_retries})")
+                time.sleep(1)
+        else:
+            app.logger.warning("Login screen not detected after retries, proceeding anyway")
+        
+        # Step 3: Build enhanced login actions with proper delays
         login_actions = [
-            {"type": "keyevent", "code": 61},  # TAB to username
-            {"type": "text", "value": creds['username']},
-            {"type": "keyevent", "code": 61},  # TAB to password
-            {"type": "text", "value": creds['password']},
-            {"type": "tap", "x": 702, "y": 1311},  # Login button
-            {"type": "wait", "seconds": 2}
+            {"type": "wait", "seconds": 0.5},
+            {"type": "keyevent", "code": 61},  # TAB to username field
+            {"type": "wait", "seconds": 0.3},
+            {"type": "text", "value": creds['username'], "delay_ms": keystroke_delay, "retry": True},
+            {"type": "wait", "seconds": 0.3},
+            {"type": "keyevent", "code": 61},  # TAB to password field
+            {"type": "wait", "seconds": 0.3},
+            {"type": "text", "value": creds['password'], "delay_ms": keystroke_delay, "retry": True},
+            {"type": "wait", "seconds": 0.5},
+            {"type": "keyevent", "code": 66},  # ENTER key (more reliable than tap)
+            {"type": "wait", "seconds": post_login_wait}
         ]
-        
-        # Execute login macro
+
+        # Step 4: Execute login macro
+        app.logger.info("Executing login actions...")
         result = screen_macros.execute_macro(address, login_actions)
+        
+        # Step 5: Check post-login screen
+        time.sleep(1)
+        post_login_screen = screen_detector.detect_current_screen(address)
+        
+        if post_login_screen:
+            app.logger.info(f"Post-login screen: {post_login_screen}")
+            result['post_login_screen'] = post_login_screen
+            
+            # Check if still on login screen (login failed)
+            if 'login' in post_login_screen.lower():
+                result['success'] = False
+                result['error'] = 'Still on login screen after login attempt'
         
         return jsonify(result)
     except Exception as e:
         app.logger.error(f"Error during auto-login: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ==================== Device Settings API Routes ====================
+
+@app.route('/api/devices/<path:address>/settings', methods=['GET', 'POST'])
+def manage_device_settings(address):
+    """Manage device-specific automation settings"""
+    try:
+        if request.method == 'GET':
+            # Get device settings
+            conn = sqlite3.connect('data/screen_control.db')
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT match_threshold, keystroke_delay_ms, post_login_wait_seconds, updated_at
+                FROM device_settings
+                WHERE device_address = ?
+            """, (address,))
+            
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                return jsonify({
+                    'success': True,
+                    'settings': {
+                        'match_threshold': row['match_threshold'],
+                        'keystroke_delay_ms': row['keystroke_delay_ms'],
+                        'post_login_wait_seconds': row['post_login_wait_seconds'],
+                        'updated_at': row['updated_at']
+                    }
+                })
+            else:
+                # Return default settings
+                return jsonify({
+                    'success': True,
+                    'settings': {
+                        'match_threshold': 0.7,
+                        'keystroke_delay_ms': 150,
+                        'post_login_wait_seconds': 4,
+                        'updated_at': None
+                    }
+                })
+        
+        elif request.method == 'POST':
+            # Save device settings
+            data = request.get_json(silent=True) or {}
+            match_threshold = data.get('match_threshold', 0.7)
+            keystroke_delay_ms = data.get('keystroke_delay_ms', 150)
+            post_login_wait_seconds = data.get('post_login_wait_seconds', 4)
+            
+            # Validate values
+            if not (0.5 <= match_threshold <= 0.95):
+                return jsonify({
+                    'success': False,
+                    'error': 'match_threshold must be between 0.5 and 0.95'
+                }), 400
+            
+            if not (50 <= keystroke_delay_ms <= 500):
+                return jsonify({
+                    'success': False,
+                    'error': 'keystroke_delay_ms must be between 50 and 500'
+                }), 400
+            
+            if not (2 <= post_login_wait_seconds <= 10):
+                return jsonify({
+                    'success': False,
+                    'error': 'post_login_wait_seconds must be between 2 and 10'
+                }), 400
+            
+            conn = sqlite3.connect('data/screen_control.db')
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO device_settings (device_address, match_threshold, keystroke_delay_ms, post_login_wait_seconds, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(device_address) DO UPDATE SET
+                    match_threshold = excluded.match_threshold,
+                    keystroke_delay_ms = excluded.keystroke_delay_ms,
+                    post_login_wait_seconds = excluded.post_login_wait_seconds,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (address, match_threshold, keystroke_delay_ms, post_login_wait_seconds))
+            
+            conn.commit()
+            conn.close()
+            
+            app.logger.info(f"Device settings saved for {address}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Device settings saved for {address}',
+                'settings': {
+                    'match_threshold': match_threshold,
+                    'keystroke_delay_ms': keystroke_delay_ms,
+                    'post_login_wait_seconds': post_login_wait_seconds
+                }
+            })
+    except Exception as e:
+        app.logger.error(f"Error managing device settings: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ==================== Load Date Override API Routes ====================
+
+@app.route('/api/loads/<path:load_number>/date-override', methods=['GET', 'POST', 'DELETE'])
+def manage_load_date_override(load_number):
+    """Manage date override for a load"""
+    try:
+        if request.method == 'GET':
+            # Get current date override
+            conn = sqlite3.connect('data/screen_control.db')
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT override_date, original_date, created_at
+                FROM load_date_overrides
+                WHERE load_number = ?
+            """, (load_number,))
+            
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                return jsonify({
+                    'success': True,
+                    'has_override': True,
+                    'load_number': load_number,
+                    'override_date': row['override_date'],
+                    'original_date': row['original_date'],
+                    'created_at': row['created_at']
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'has_override': False,
+                    'load_number': load_number
+                })
+        
+        elif request.method == 'POST':
+            # Save date override
+            data = request.get_json(silent=True) or {}
+            override_date = data.get('override_date')
+            original_date = data.get('original_date', '')
+            
+            if not override_date:
+                return jsonify({
+                    'success': False,
+                    'error': 'override_date is required'
+                }), 400
+            
+            conn = sqlite3.connect('data/screen_control.db')
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO load_date_overrides (load_number, override_date, original_date)
+                VALUES (?, ?, ?)
+                ON CONFLICT(load_number) DO UPDATE SET
+                    override_date = excluded.override_date,
+                    original_date = excluded.original_date
+            """, (load_number, override_date, original_date))
+            
+            conn.commit()
+            conn.close()
+            
+            app.logger.info(f"Date override saved for load {load_number}: {override_date}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Date override saved for load {load_number}',
+                'load_number': load_number,
+                'override_date': override_date
+            })
+        
+        elif request.method == 'DELETE':
+            # Delete date override
+            conn = sqlite3.connect('data/screen_control.db')
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                DELETE FROM load_date_overrides
+                WHERE load_number = ?
+            """, (load_number,))
+            
+            deleted = cursor.rowcount > 0
+            conn.commit()
+            conn.close()
+            
+            if deleted:
+                app.logger.info(f"Date override deleted for load {load_number}")
+                return jsonify({
+                    'success': True,
+                    'message': f'Date override deleted for load {load_number}'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'No override found for this load'
+                }), 404
+    except Exception as e:
+        app.logger.error(f"Error managing load date override: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/loads/date-overrides/cleanup', methods=['POST'])
+def cleanup_load_date_overrides():
+    """Cleanup old load date overrides (>14 days)"""
+    try:
+        from datetime import datetime, timedelta
+        
+        conn = sqlite3.connect('data/screen_control.db')
+        cursor = conn.cursor()
+        
+        # Calculate cutoff date (14 days ago)
+        cutoff_date = (datetime.now() - timedelta(days=14)).isoformat()
+        
+        cursor.execute("""
+            DELETE FROM load_date_overrides
+            WHERE created_at < ?
+        """, (cutoff_date,))
+        
+        deleted_count = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        app.logger.info(f"Cleaned up {deleted_count} old load date overrides")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Cleaned up {deleted_count} old date overrides',
+            'deleted_count': deleted_count
+        })
+    except Exception as e:
+        app.logger.error(f"Error cleaning up load date overrides: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ==================== Load Notes API Routes ====================
+
+@app.route('/api/loads/<path:load_number>/note', methods=['GET', 'POST', 'DELETE'])
+def manage_load_note(load_number):
+    """Manage note for a load"""
+    try:
+        if request.method == 'GET':
+            # Get current note
+            conn = sqlite3.connect('data/screen_control.db')
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT note_text, created_at, updated_at
+                FROM load_notes
+                WHERE load_number = ?
+            """, (load_number,))
+            
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                return jsonify({
+                    'success': True,
+                    'has_note': True,
+                    'load_number': load_number,
+                    'note_text': row['note_text'],
+                    'created_at': row['created_at'],
+                    'updated_at': row['updated_at']
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'has_note': False,
+                    'load_number': load_number
+                })
+        
+        elif request.method == 'POST':
+            # Save note
+            data = request.get_json(silent=True) or {}
+            note_text = data.get('note_text', '')
+            
+            if not note_text:
+                return jsonify({
+                    'success': False,
+                    'error': 'note_text is required'
+                }), 400
+            
+            conn = sqlite3.connect('data/screen_control.db')
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO load_notes (load_number, note_text, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(load_number) DO UPDATE SET
+                    note_text = excluded.note_text,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (load_number, note_text))
+            
+            conn.commit()
+            conn.close()
+            
+            app.logger.info(f"Note saved for load {load_number}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Note saved for load {load_number}',
+                'load_number': load_number,
+                'note_text': note_text
+            })
+        
+        elif request.method == 'DELETE':
+            # Delete note
+            conn = sqlite3.connect('data/screen_control.db')
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                DELETE FROM load_notes
+                WHERE load_number = ?
+            """, (load_number,))
+            
+            deleted = cursor.rowcount > 0
+            conn.commit()
+            conn.close()
+            
+            if deleted:
+                app.logger.info(f"Note deleted for load {load_number}")
+                return jsonify({
+                    'success': True,
+                    'message': f'Note deleted for load {load_number}'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'No note found for this load'
+                }), 404
+    except Exception as e:
+        app.logger.error(f"Error managing load note: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

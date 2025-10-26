@@ -83,6 +83,7 @@ class ADBDevice:
         self.connected = False
         self.app_installed = False
         self.app_running = False
+        self.slave_mode = False
         
     def run_adb_command(self, command, timeout=10):
         """Execute ADB command for this device"""
@@ -461,6 +462,195 @@ class ADBDevice:
                 
         except Exception as e:
             print(f"❌ Error pulling SQL file: {e}")
+            return False
+    
+    def enable_slave_mode(self):
+        """
+        Enable slave mode - keeps device awake with screen off
+        Device can be controlled remotely without user interaction
+        """
+        if not self.connected:
+            print(f"❌ {self.name} is not connected")
+            return False
+        
+        print(f"🔒 Enabling slave mode on {self.name}...")
+        
+        try:
+            # Step 1: Disable screen timeout (set to max value)
+            print(f"  → Disabling screen timeout...")
+            result = self.run_adb_command(
+                ['shell', 'settings', 'put', 'system', 'screen_off_timeout', '2147483647'],
+                timeout=10
+            )
+            
+            if not result or result.returncode != 0:
+                print(f"⚠️  Warning: Failed to set screen timeout")
+            
+            # Step 2: Enable stay-on while charging/USB
+            print(f"  → Enabling stay awake mode...")
+            result = self.run_adb_command(
+                ['shell', 'svc', 'power', 'stayon', 'true'],
+                timeout=10
+            )
+            
+            if not result or result.returncode != 0:
+                print(f"⚠️  Warning: Failed to enable stay awake")
+            
+            # Step 3: Turn screen off (but device stays awake)
+            print(f"  → Turning screen off...")
+            result = self.run_adb_command(
+                ['shell', 'input', 'keyevent', '26'],
+                timeout=10
+            )
+            
+            if not result or result.returncode != 0:
+                print(f"⚠️  Warning: Failed to turn screen off")
+            
+            self.slave_mode = True
+            print(f"✅ Slave mode enabled on {self.name}")
+            print(f"   Device is now controlled (screen off, won't sleep)")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error enabling slave mode: {e}")
+            return False
+    
+    def disable_slave_mode(self):
+        """
+        Disable slave mode - restore normal power settings
+        """
+        if not self.connected:
+            print(f"❌ {self.name} is not connected")
+            return False
+        
+        print(f"🔓 Disabling slave mode on {self.name}...")
+        
+        try:
+            # Step 1: Restore screen timeout (60 seconds)
+            print(f"  → Restoring screen timeout...")
+            result = self.run_adb_command(
+                ['shell', 'settings', 'put', 'system', 'screen_off_timeout', '60000'],
+                timeout=10
+            )
+            
+            if not result or result.returncode != 0:
+                print(f"⚠️  Warning: Failed to restore screen timeout")
+            
+            # Step 2: Disable stay-on
+            print(f"  → Disabling stay awake mode...")
+            result = self.run_adb_command(
+                ['shell', 'svc', 'power', 'stayon', 'false'],
+                timeout=10
+            )
+            
+            if not result or result.returncode != 0:
+                print(f"⚠️  Warning: Failed to disable stay awake")
+            
+            # Step 3: Wake screen (turn it back on)
+            print(f"  → Waking screen...")
+            result = self.run_adb_command(
+                ['shell', 'input', 'keyevent', 'KEYCODE_WAKEUP'],
+                timeout=10
+            )
+            
+            if not result or result.returncode != 0:
+                print(f"⚠️  Warning: Failed to wake screen")
+            
+            self.slave_mode = False
+            print(f"✅ Slave mode disabled on {self.name}")
+            print(f"   Device restored to normal mode")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error disabling slave mode: {e}")
+            return False
+    
+    def get_slave_mode_status(self):
+        """
+        Check if slave mode is enabled
+        
+        Returns:
+            Dict with status information
+        """
+        if not self.connected:
+            return {
+                'enabled': False,
+                'reason': 'disconnected'
+            }
+        
+        try:
+            # Check screen timeout setting
+            result = self.run_adb_command(
+                ['shell', 'settings', 'get', 'system', 'screen_off_timeout'],
+                timeout=5
+            )
+            
+            timeout_value = None
+            if result and result.returncode == 0:
+                try:
+                    timeout_value = int(result.stdout.strip())
+                except ValueError:
+                    pass
+            
+            # Check stay awake setting
+            result = self.run_adb_command(
+                ['shell', 'settings', 'get', 'global', 'stay_on_while_plugged_in'],
+                timeout=5
+            )
+            
+            stay_awake = False
+            if result and result.returncode == 0:
+                try:
+                    stay_awake_value = int(result.stdout.strip())
+                    stay_awake = stay_awake_value > 0
+                except ValueError:
+                    pass
+            
+            # Consider slave mode enabled if timeout is very high (> 1 hour)
+            enabled = timeout_value is not None and timeout_value > 3600000
+            
+            return {
+                'enabled': enabled,
+                'screen_timeout': timeout_value,
+                'stay_awake': stay_awake
+            }
+            
+        except Exception as e:
+            print(f"❌ Error checking slave mode status: {e}")
+            return {
+                'enabled': False,
+                'reason': 'error',
+                'error': str(e)
+            }
+    
+    def wake_screen(self):
+        """Wake the device screen"""
+        if not self.connected:
+            return False
+        
+        try:
+            result = self.run_adb_command(
+                ['shell', 'input', 'keyevent', 'KEYCODE_WAKEUP'],
+                timeout=5
+            )
+            return result and result.returncode == 0
+        except Exception as e:
+            print(f"❌ Error waking screen: {e}")
+            return False
+    
+    def sleep_screen(self):
+        """Turn off the device screen (while keeping device awake in slave mode)"""
+        if not self.connected:
+            return False
+        
+        try:
+            result = self.run_adb_command(
+                ['shell', 'input', 'keyevent', '26'],
+                timeout=5
+            )
+            return result and result.returncode == 0
+        except Exception as e:
+            print(f"❌ Error sleeping screen: {e}")
             return False
 
 

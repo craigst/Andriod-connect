@@ -96,6 +96,41 @@ def init_database():
         )
     """)
     
+    # Device settings table (stores per-device automation settings)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS device_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_address TEXT UNIQUE,
+            match_threshold REAL DEFAULT 0.7,
+            keystroke_delay_ms INTEGER DEFAULT 150,
+            post_login_wait_seconds INTEGER DEFAULT 4,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Load date overrides table (stores date overrides for loads, auto-cleanup after 14 days)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS load_date_overrides (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            load_number TEXT UNIQUE,
+            override_date TEXT,
+            original_date TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Load notes table (stores custom notes for loads)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS load_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            load_number TEXT UNIQUE,
+            note_text TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
     print("Tables created successfully!")
     
     # Insert default templates
