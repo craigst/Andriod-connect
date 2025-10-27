@@ -354,40 +354,32 @@ async def list_tools() -> list[Tool]:
         # Timesheet Entry Management
         Tool(
             name="create_timesheet_entry",
-            description="Create or update a timesheet entry for a specific day",
+            description="Create or update a timesheet entry for a specific day. Automatically calculates the correct date and week ending. Supports flexible time formats like '7', '07:00', '19', etc.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "week_ending": {
-                        "type": "string",
-                        "description": "Week ending date (YYYY-MM-DD, should be a Sunday)"
-                    },
                     "day_name": {
                         "type": "string",
-                        "description": "Day of week (Monday, Tuesday, etc.)"
-                    },
-                    "entry_date": {
-                        "type": "string",
-                        "description": "Entry date (YYYY-MM-DD)"
+                        "description": "Day of week (Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)"
                     },
                     "start_time": {
                         "type": "string",
-                        "description": "Start time (HH:MM format)"
+                        "description": "Start time - flexible format: '7', '07', '7:00', '07:00', '19', '19:00', etc."
                     },
                     "finish_time": {
                         "type": "string",
-                        "description": "Finish time (HH:MM format)"
+                        "description": "Finish time - flexible format: '7', '07', '7:00', '07:00', '19', '19:00', etc."
                     },
                     "driver": {
                         "type": "string",
-                        "description": "Driver name"
+                        "description": "Driver name (optional)"
                     },
                     "fleet_reg": {
                         "type": "string",
-                        "description": "Fleet registration"
+                        "description": "Fleet registration (optional)"
                     }
                 },
-                "required": ["week_ending", "day_name", "entry_date", "start_time", "finish_time"]
+                "required": ["day_name", "start_time", "finish_time"]
             }
         ),
         Tool(
@@ -827,30 +819,85 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     
     # Timesheet Entry Tools
     elif name == "create_timesheet_entry":
-        week_ending = arguments.get("week_ending")
         day_name = arguments.get("day_name")
-        entry_date = arguments.get("entry_date")
         start_time = arguments.get("start_time")
         finish_time = arguments.get("finish_time")
         driver = arguments.get("driver", "")
         fleet_reg = arguments.get("fleet_reg", "")
         
+        # Parse times - support formats like "7", "07", "7:00", "07:00", "19", "19:00"
+        def parse_time(time_str):
+            """Parse flexible time formats to HH:MM"""
+            time_str = str(time_str).strip()
+            
+            # If already in HH:MM format, return as is
+            if ':' in time_str and len(time_str.split(':')[0]) == 2:
+                return time_str
+            
+            # Handle simple hour format like "7" or "19"
+            if ':' not in time_str:
+                hour = int(time_str)
+                return f"{hour:02d}:00"
+            
+            # Handle "7:00" format
+            parts = time_str.split(':')
+            hour = int(parts[0])
+            minute = int(parts[1]) if len(parts) > 1 else 0
+            return f"{hour:02d}:{minute:02d}"
+        
+        try:
+            start_time_formatted = parse_time(start_time)
+            finish_time_formatted = parse_time(finish_time)
+        except Exception as e:
+            return [TextContent(type="text", text=f"❌ Error parsing time: {e}\\nPlease use format like '7' or '07:00'")]
+        
+        # Calculate the correct date based on day name
+        from datetime import datetime, timedelta
+        today = datetime.now().date()
+        day_of_week = today.weekday()  # Monday=0, Sunday=6
+        
+        # Map day names to weekday numbers
+        day_map = {
+            'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
+            'friday': 4, 'saturday': 5, 'sunday': 6
+        }
+        
+        target_day = day_map.get(day_name.lower())
+        if target_day is None:
+            return [TextContent(type="text", text=f"❌ Error: Invalid day name '{day_name}'")]
+        
+        # Calculate the entry date (if today is Sunday and they say Monday, use last Monday)
+        days_diff = target_day - day_of_week
+        if days_diff > 0:
+            # If the target day is ahead, go back to last week
+            days_diff -= 7
+        
+        entry_date = today + timedelta(days=days_diff)
+        
+        # Calculate week ending (the Sunday after the entry date)
+        days_to_sunday = 6 - entry_date.weekday()
+        week_ending = entry_date + timedelta(days=days_to_sunday)
+        
         # Calculate total hours
         try:
-            from datetime import datetime
-            start = datetime.strptime(start_time, "%H:%M")
-            finish = datetime.strptime(finish_time, "%H:%M")
+            start = datetime.strptime(start_time_formatted, "%H:%M")
+            finish = datetime.strptime(finish_time_formatted, "%H:%M")
+            
+            # Handle overnight shifts
+            if finish < start:
+                finish += timedelta(days=1)
+            
             diff = finish - start
             total_hours = diff.total_seconds() / 3600
-        except:
-            total_hours = 0
+        except Exception as e:
+            return [TextContent(type="text", text=f"❌ Error calculating hours: {e}")]
         
         entry = {
-            "week_ending_date": week_ending,
-            "day_name": day_name,
-            "entry_date": entry_date,
-            "start_time": start_time,
-            "finish_time": finish_time,
+            "week_ending_date": week_ending.strftime("%Y-%m-%d"),
+            "day_name": day_name.capitalize(),
+            "entry_date": entry_date.strftime("%d/%m/%y"),
+            "start_time": start_time_formatted,
+            "finish_time": finish_time_formatted,
             "total_hours": str(round(total_hours, 2)),
             "driver": driver,
             "fleet_reg": fleet_reg,
@@ -867,7 +914,9 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         if result.get("success"):
             return [TextContent(
                 type="text",
-                text=f"✅ Timesheet entry saved for {day_name}\nHours worked: {total_hours:.2f}"
+                text=f"✅ Timesheet entry saved for {day_name.capitalize()} ({entry_date.strftime('%d/%m/%Y')})\\n"
+                     f"Hours: {start_time_formatted} - {finish_time_formatted} = {total_hours:.2f} hours\\n"
+                     f"Week ending: {week_ending.strftime('%d/%m/%Y')}"
             )]
         else:
             return [TextContent(type="text", text=f"❌ Error: {result.get('error')}")]
