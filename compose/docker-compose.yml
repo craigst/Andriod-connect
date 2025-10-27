@@ -9,6 +9,7 @@ services:
     network_mode: host
     ports:
       - "${HOST_PORT:-5020}:${CONTAINER_PORT:-5020}"
+      - "${MCP_PORT:-8100}:8100"
     volumes:
       # Persistent data storage
       - ${DATA_PATH:-../data}:/app/data
@@ -21,6 +22,9 @@ services:
     environment:
       - PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
       - TZ=${TZ:-Europe/London}
+      - FLASK_API_URL=http://localhost:5020
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8100
     privileged: true
     devices:
       - /dev/bus/usb:/dev/bus/usb

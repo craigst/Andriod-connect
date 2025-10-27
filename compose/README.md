@@ -1,6 +1,6 @@
 # ADB Device Manager - Docker Deployment
 
-Docker container for the ADB Device Manager web application.
+Docker container for the ADB Device Manager web application with integrated MCP servers.
 
 ## ✅ Testing Results
 
@@ -14,7 +14,27 @@ curl http://localhost:5020/api/health
 # Devices check
 curl http://localhost:5020/api/devices
 # Response: 3 devices configured (Local Device, Device 1, Device 2)
+
+# MCP HTTP Server check
+curl http://localhost:8100/sse
+# SSE connection endpoint for MCP clients
 ```
+
+## 🎯 Integrated Services
+
+The Docker container now runs **three services**:
+
+1. **Flask API** (Port 5020) - Main web application and REST API
+2. **MCP HTTP Server** (Port 8100) - HTTP/SSE transport for n8n and other HTTP clients
+3. **MCP Stdio Server** - Stdio transport for local/internal MCP access
+
+All MCP tools provide AI-friendly access to:
+- Load search and management
+- Paperwork generation (loadsheets, timesheets)
+- Device management
+- Vehicle lookup
+- Timesheet entries
+- Database operations
 
 ---
 
@@ -107,7 +127,8 @@ Create a custom template in Unraid:
 **Privileged:** `On`
 
 **Port Mappings:**
-- Container Port: `5020` → Host Port: `5020`
+- Container Port: `5020` → Host Port: `5020` (Flask API)
+- Container Port: `8100` → Host Port: `8100` (MCP HTTP Server)
 
 **Path Mappings:**
 - `/app/data` → `/mnt/user/appdata/adb-device-manager/data`
@@ -118,18 +139,28 @@ Create a custom template in Unraid:
 **Environment Variables:**
 - `PYTHONUNBUFFERED` = `1`
 - `TZ` = `Europe/London`
+- `FLASK_API_URL` = `http://localhost:5020`
+- `MCP_HOST` = `0.0.0.0`
+- `MCP_PORT` = `8100`
 
 **Devices:**
 - `/dev/bus/usb` → `/dev/bus/usb`
 
 ---
 
-## 🌐 Access the Web UI
+## 🌐 Access the Services
 
 Once running:
+
+### Web UI
 - **Local:** http://localhost:5020
 - **Network:** http://[UNRAID-IP]:5020
 - **Example:** http://10.10.254.10:5020
+
+### MCP HTTP Server (for n8n, etc.)
+- **SSE Endpoint:** http://localhost:8100/sse
+- **Messages Endpoint:** http://localhost:8100/messages
+- **Network Access:** http://[UNRAID-IP]:8100/sse
 
 ---
 
@@ -181,7 +212,45 @@ docker exec -it adb-device-manager adb devices
 ✅ **Persistent Storage** - Data and logs survive container restarts  
 ✅ **Auto-restart** - Container restarts on failure  
 ✅ **Health Checks** - Built-in health monitoring  
-✅ **Log Rotation** - Automatic log management (10MB max, 5 backups)
+✅ **Log Rotation** - Automatic log management (10MB max, 5 backups)  
+✅ **MCP Servers** - Both HTTP (port 8100) and Stdio transports included  
+✅ **AI Integration** - 17+ MCP tools for AI-powered automation
+
+## 🤖 MCP Server Features
+
+The integrated MCP servers provide comprehensive AI-friendly tools:
+
+### Search & Discovery
+- `search_loads_by_date` - Search loads by date/period (today, this_week, etc.)
+- `search_loads_by_location` - Search by customer, town, or postcode
+- `get_loads_summary` - Get all loads with descriptions
+- `get_load_details` - Detailed load information including vehicles
+
+### Paperwork Generation
+- `generate_loadsheet` - Create loadsheet for specific load
+- `generate_all_loadsheets_for_period` - Batch generate for date range
+- `generate_timesheet` - Create timesheet for date range
+- `list_available_weeks` - Show weeks available for timesheets
+
+### Device Management
+- `get_device_status` - Check all device statuses
+- `pull_latest_data` - Pull SQL database from device
+- `connect_devices` - Connect to all configured devices
+- `check_database_freshness` - Check database age
+
+### Timesheet Management
+- `create_timesheet_entry` - Add/update timesheet entry
+- `get_timesheet_entries` - Retrieve entries for a week
+
+### Vehicle Lookup
+- `lookup_vehicle` - Look up vehicle by registration
+- `save_vehicle_override` - Save custom vehicle data
+
+### Resources
+- `resource://loads/current` - Current loads with details
+- `resource://devices/status` - Device statuses
+- `resource://database/info` - Database information
+- `resource://paperwork/weeks` - Available weeks
 
 ---
 
@@ -276,6 +345,9 @@ ls -la ../data/
 |----------|---------|-------------|
 | `PYTHONUNBUFFERED` | `1` | Disable Python output buffering |
 | `TZ` | `Europe/London` | Container timezone |
+| `FLASK_API_URL` | `http://localhost:5020` | Flask API endpoint for MCP servers |
+| `MCP_HOST` | `0.0.0.0` | MCP HTTP server bind address |
+| `MCP_PORT` | `8100` | MCP HTTP server port |
 
 ---
 
@@ -323,13 +395,16 @@ ls -la ../data/
 ## ✅ Verified Working
 
 - ✅ Container builds successfully
-- ✅ Server starts on port 5020
+- ✅ Flask API starts on port 5020
+- ✅ MCP HTTP Server starts on port 8100
+- ✅ MCP Stdio Server running in foreground
 - ✅ Health check endpoint responds
 - ✅ Device management works
 - ✅ ADB tools available
 - ✅ Network connectivity confirmed
 - ✅ Logs writing correctly
 - ✅ Volumes mount properly
+- ✅ All MCP tools functional
 
 ---
 
@@ -338,14 +413,63 @@ ls -la ../data/
 After starting the container:
 
 ```bash
-# Test health
+# Test Flask API health
 curl http://localhost:5020/api/health
 
 # Test devices
 curl http://localhost:5020/api/devices
 
+# Test MCP HTTP Server (SSE endpoint)
+curl http://localhost:8100/sse
+
 # View in browser
 open http://localhost:5020
+
+# Check MCP HTTP logs
+docker logs adb-device-manager | grep "MCP HTTP"
 ```
 
 All systems operational! 🚀
+
+## 📡 Using MCP with n8n
+
+To connect n8n to the MCP HTTP server:
+
+1. **Add MCP Node** in n8n workflow
+2. **Configure Connection:**
+   - Protocol: `HTTP`
+   - SSE Endpoint: `http://[DOCKER-HOST]:8100/sse`
+   - Messages Endpoint: `http://[DOCKER-HOST]:8100/messages`
+3. **Available Tools:** All 17+ MCP tools listed above
+
+Example n8n workflow:
+- Trigger: Schedule (daily)
+- MCP Tool: `search_loads_by_date` with period "today"
+- MCP Tool: `generate_all_loadsheets_for_period` with period "today"
+- Result: Automated daily loadsheet generation
+
+## 📋 Service Startup Sequence
+
+The Docker entrypoint script manages services in this order:
+
+1. **Start Flask API** → Runs in background on port 5020
+2. **Wait for Flask Ready** → Health check until API responds (max 30s)
+3. **Start MCP HTTP Server** → Runs in background on port 8100
+4. **Start MCP Stdio Server** → Runs in foreground (keeps container alive)
+
+All logs are available:
+- Flask API: `/app/logs/flask.log`
+- MCP HTTP: `/app/logs/mcp_http.log`
+- MCP Stdio: Container stdout
+
+## 🔧 MCP Configuration
+
+The MCP servers use these environment variables (already configured):
+
+```bash
+FLASK_API_URL=http://localhost:5020  # Backend API endpoint
+MCP_HOST=0.0.0.0                      # Allow external connections
+MCP_PORT=8100                         # HTTP server port
+```
+
+To customize, edit `.env` file or `docker-compose.yml`.
