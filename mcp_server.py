@@ -454,6 +454,58 @@ async def list_tools() -> list[Tool]:
                 "required": ["load_number"]
             }
         ),
+        
+        # Date Override Tools
+        Tool(
+            name="get_load_date_override",
+            description="Check if a load has a delivery date override set",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "load_number": {
+                        "type": "string",
+                        "description": "The load number (e.g., '$S305187')"
+                    }
+                },
+                "required": ["load_number"]
+            }
+        ),
+        Tool(
+            name="set_load_date_override",
+            description="Override the delivery date for a specific load (useful for grouping loads by date in paperwork)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "load_number": {
+                        "type": "string",
+                        "description": "The load number (e.g., '$S305187')"
+                    },
+                    "override_date": {
+                        "type": "string",
+                        "description": "New delivery date in YYYY-MM-DD format (e.g., '2025-10-24')"
+                    },
+                    "original_date": {
+                        "type": "string",
+                        "description": "Original delivery date (optional, for reference)"
+                    }
+                },
+                "required": ["load_number", "override_date"]
+            }
+        ),
+        Tool(
+            name="delete_load_date_override",
+            description="Remove a delivery date override from a load, restoring the original date",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "load_number": {
+                        "type": "string",
+                        "description": "The load number (e.g., '$S305187')"
+                    }
+                },
+                "required": ["load_number"]
+            }
+        ),
     ]
 
 
@@ -955,6 +1007,70 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         response_lines.append("\n" + "=" * 60)
         
         return [TextContent(type="text", text="\n".join(response_lines))]
+    
+    # Date Override Tools
+    elif name == "get_load_date_override":
+        load_number = arguments.get("load_number")
+        
+        result = await api_request("GET", f"/api/loads/{load_number}/date-override")
+        
+        if result.get("success"):
+            if result.get("has_override"):
+                override_date = result.get("override_date", "Unknown")
+                original_date = result.get("original_date", "Unknown")
+                created_at = result.get("created_at", "Unknown")
+                
+                return [TextContent(
+                    type="text",
+                    text=f"📅 Date Override Active for {load_number}\n"
+                         f"Override Date: {override_date}\n"
+                         f"Original Date: {original_date}\n"
+                         f"Created: {created_at}"
+                )]
+            else:
+                return [TextContent(type="text", text=f"No date override set for {load_number}")]
+        else:
+            return [TextContent(type="text", text=f"❌ Error: {result.get('error')}")]
+    
+    elif name == "set_load_date_override":
+        load_number = arguments.get("load_number")
+        override_date = arguments.get("override_date")
+        original_date = arguments.get("original_date", "")
+        
+        payload = {
+            "override_date": override_date
+        }
+        if original_date:
+            payload["original_date"] = original_date
+        
+        result = await api_request(
+            "POST",
+            f"/api/loads/{load_number}/date-override",
+            json=payload
+        )
+        
+        if result.get("success"):
+            return [TextContent(
+                type="text",
+                text=f"✅ Date override set for {load_number}\n"
+                     f"Delivery date will be shown as: {override_date}"
+            )]
+        else:
+            return [TextContent(type="text", text=f"❌ Error: {result.get('error')}")]
+    
+    elif name == "delete_load_date_override":
+        load_number = arguments.get("load_number")
+        
+        result = await api_request("DELETE", f"/api/loads/{load_number}/date-override")
+        
+        if result.get("success"):
+            return [TextContent(
+                type="text",
+                text=f"✅ Date override removed for {load_number}\n"
+                     f"Original delivery date restored"
+            )]
+        else:
+            return [TextContent(type="text", text=f"❌ Error: {result.get('error')}")]
     
     return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
