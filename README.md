@@ -13,7 +13,17 @@ A comprehensive Flask-based web application for managing Android devices via ADB
 - **REST API**: Full-featured API for automation and integration
 - **Web UI**: User-friendly web interface for manual operations
 - **Docker Support**: Easy deployment with Docker/Podman
-- **🤖 AI Integration (MCP Server)**: Natural language control via Cline/Claude - "Generate paperwork for all loads this week"
+
+## 🤖 AI Integration
+
+The MCP (Model Context Protocol) server is now a **separate project** in the `mcp-server/` directory. 
+
+This allows AI assistants like Claude to control the system with natural language:
+- "Generate paperwork for all loads this week"
+- "Pull the latest database from the device"
+- "Show me loads going to Ashford"
+
+**See:** [mcp-server/README.md](mcp-server/README.md) for setup and usage.
 
 ## 📋 Table of Contents
 
@@ -23,6 +33,7 @@ A comprehensive Flask-based web application for managing Android devices via ADB
 - [Usage](#usage)
 - [API Documentation](#api-documentation)
 - [Docker Deployment](#docker-deployment)
+- [MCP Server](#mcp-server)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 
@@ -313,6 +324,30 @@ APK_PATH = "apk/BCAApp.apk"  # APK file location
 DATA_FOLDER = "data"  # Database storage folder
 ```
 
+## 🤖 MCP Server
+
+The MCP (Model Context Protocol) server is a **separate project** located in `mcp-server/`.
+
+It provides AI assistants like Claude with tools to:
+- Search and query loads
+- Generate paperwork automatically
+- Control devices
+- Manage timesheet entries
+
+**Quick Start:**
+```bash
+cd mcp-server
+pip install -r requirements.txt
+
+# For Claude Desktop (stdio)
+python mcp_server.py
+
+# For n8n/web clients (HTTP)
+python mcp_server_http.py
+```
+
+**See full documentation:** [mcp-server/README.md](mcp-server/README.md)
+
 ## 📁 Project Structure
 
 ```
@@ -322,6 +357,11 @@ Andriod-connect/
 ├── requirements.txt        # Python dependencies
 ├── README.md              # This file
 ├── API_DOCUMENTATION.md   # Complete API docs
+├── mcp-server/            # MCP Server (separate project)
+│   ├── mcp_server.py      # Stdio transport (Claude Desktop)
+│   ├── mcp_server_http.py # HTTP/SSE transport (n8n, web)
+│   ├── requirements.txt   # MCP dependencies
+│   └── README.md          # MCP documentation
 ├── compose/
 │   ├── Dockerfile         # Docker container definition
 │   └── docker-compose.yml # Docker Compose config

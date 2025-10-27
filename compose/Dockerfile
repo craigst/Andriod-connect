@@ -18,11 +18,9 @@ WORKDIR /app
 
 # Copy requirements first for better caching
 COPY requirements.txt .
-COPY requirements-mcp.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir -r requirements-mcp.txt
 
 # Copy application files
 COPY adb_manager.py .
@@ -32,8 +30,6 @@ COPY screen_detector.py .
 COPY screen_macros.py .
 COPY init_screen_control_db.py .
 COPY vehicle_lookup.py .
-COPY mcp_server.py .
-COPY mcp_server_http.py .
 COPY templates/ templates/
 COPY scripts/ scripts/
 COPY signature/ signature/
@@ -43,7 +39,7 @@ COPY screen_templates/ screen_templates/
 RUN mkdir -p logs data apk templates static screenshots
 
 # Expose ports
-EXPOSE 5020 8100
+EXPOSE 5020
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
