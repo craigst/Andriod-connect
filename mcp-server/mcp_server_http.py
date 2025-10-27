@@ -345,6 +345,28 @@ async def list_tools() -> list[Tool]:
                 "required": ["load_number"]
             }
         ),
+        Tool(
+            name="get_paperwork_files",
+            description="Get download links for all files (PDFs, images, etc.) in a paperwork week folder",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "week_ending": {
+                        "type": "string",
+                        "description": "Week ending date (YYYY-MM-DD) or folder name (DD-MM-YY)"
+                    }
+                },
+                "required": ["week_ending"]
+            }
+        ),
+        Tool(
+            name="list_paperwork_weeks",
+            description="List all available paperwork week folders with file counts",
+            inputSchema={
+                "type": "object",
+                "properties": {}
+            }
+        ),
     ]
 
 
@@ -477,7 +499,24 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         result = await api_request("POST", "/api/paperwork/loadsheet", json={"load_number": load_number})
         
         if result.get("success"):
-            return [TextContent(type="text", text=f"✅ Loadsheet generated successfully")]
+            # Extract PDF path and create download URL
+            pdf_path = result.get("xlsx_path", "")
+            if pdf_path:
+                # Replace .xlsx with .pdf
+                pdf_path = pdf_path.replace(".xlsx", ".pdf")
+                # Extract filename from path
+                filename = os.path.basename(pdf_path)
+                # Construct download URL
+                download_url = f"{FLASK_API_URL}/api/paperwork/download/{filename}"
+                
+                return [TextContent(
+                    type="text", 
+                    text=f"✅ Loadsheet generated successfully\n"
+                         f"📄 PDF Download: {download_url}\n"
+                         f"📁 File: {filename}"
+                )]
+            else:
+                return [TextContent(type="text", text=f"✅ Loadsheet generated successfully")]
         else:
             return [TextContent(type="text", text=f"❌ Error: {result.get('error')}")]
     
@@ -543,6 +582,123 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             )]
         else:
             return [TextContent(type="text", text=f"❌ Error: {result.get('error')}")]
+    
+    elif name == "get_paperwork_files":
+        week_ending = arguments.get("week_ending")
+        
+        # Convert YYYY-MM-DD to DD-MM-YY folder format if needed
+        try:
+            if "-" in week_ending and len(week_ending) == 10:
+                # Parse YYYY-MM-DD
+                date_obj = datetime.strptime(week_ending, "%Y-%m-%d")
+                folder_name = date_obj.strftime("%d-%m-%y")
+            else:
+                folder_name = week_ending
+        except:
+            folder_name = week_ending
+        
+        # List files in the paperwork directory
+        paperwork_dir = "/app/paperwork"
+        folder_path = os.path.join(paperwork_dir, folder_name)
+        
+        if not os.path.exists(folder_path):
+            return [TextContent(type="text", text=f"❌ Folder not found: {folder_name}")]
+        
+        try:
+            files = []
+            for filename in os.listdir(folder_path):
+                file_path = os.path.join(folder_path, filename)
+                if os.path.isfile(file_path):
+                    file_size = os.path.getsize(file_path)
+                    file_ext = os.path.splitext(filename)[1].lower()
+                    
+                    # Determine file type
+                    if file_ext == ".pdf":
+                        file_type = "PDF"
+                    elif file_ext in [".png", ".jpg", ".jpeg", ".gif"]:
+                        file_type = "Image"
+                    elif file_ext == ".xlsx":
+                        file_type = "Excel"
+                    else:
+                        file_type = "Other"
+                    
+                    # Create download URL
+                    download_url = f"{FLASK_API_URL}/api/paperwork/download/{folder_name}/{filename}"
+                    
+                    files.append({
+                        "filename": filename,
+                        "type": file_type,
+                        "size": file_size,
+                        "size_mb": round(file_size / (1024 * 1024), 2),
+                        "download_url": download_url
+                    })
+            
+            # Sort files by type (PDFs first, then images, then others)
+            type_order = {"PDF": 1, "Image": 2, "Excel": 3, "Other": 4}
+            files.sort(key=lambda x: (type_order.get(x["type"], 99), x["filename"]))
+            
+            if not files:
+                return [TextContent(type="text", text=f"📁 No files found in {folder_name}")]
+            
+            response_lines = [f"📁 Files in {folder_name} ({len(files)} files):\n"]
+            
+            # Group by type
+            current_type = None
+            for file in files:
+                if file["type"] != current_type:
+                    current_type = file["type"]
+                    response_lines.append(f"\n{current_type}s:")
+                
+                response_lines.append(f"  • {file['filename']} ({file['size_mb']} MB)")
+                response_lines.append(f"    🔗 {file['download_url']}")
+            
+            return [TextContent(type="text", text="\n".join(response_lines))]
+            
+        except Exception as e:
+            return [TextContent(type="text", text=f"❌ Error listing files: {str(e)}")]
+    
+    elif name == "list_paperwork_weeks":
+        paperwork_dir = "/app/paperwork"
+        
+        if not os.path.exists(paperwork_dir):
+            return [TextContent(type="text", text=f"❌ Paperwork directory not found")]
+        
+        try:
+            weeks = []
+            for folder_name in os.listdir(paperwork_dir):
+                folder_path = os.path.join(paperwork_dir, folder_name)
+                if os.path.isdir(folder_path):
+                    # Count files in folder
+                    file_count = len([f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))])
+                    
+                    # Count PDFs specifically
+                    pdf_count = len([f for f in os.listdir(folder_path) if f.endswith('.pdf')])
+                    
+                    weeks.append({
+                        "folder": folder_name,
+                        "file_count": file_count,
+                        "pdf_count": pdf_count,
+                        "path": folder_path
+                    })
+            
+            # Sort by folder name (newest first, assuming DD-MM-YY format)
+            weeks.sort(key=lambda x: x["folder"], reverse=True)
+            
+            if not weeks:
+                return [TextContent(type="text", text="📁 No paperwork weeks found")]
+            
+            response_lines = [f"📁 Available Paperwork Weeks ({len(weeks)} weeks):\n"]
+            
+            for week in weeks:
+                response_lines.append(
+                    f"  • {week['folder']}: {week['file_count']} files "
+                    f"({week['pdf_count']} PDFs)"
+                )
+            
+            return [TextContent(type="text", text="\n".join(response_lines))]
+            
+        except Exception as e:
+            return [TextContent(type="text", text=f"❌ Error listing weeks: {str(e)}")]
     
     return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
