@@ -25,7 +25,7 @@ from starlette.responses import Response
 import uvicorn
 
 # Configuration
-FLASK_API_URL = os.getenv("FLASK_API_URL", "http://localhost:5020")
+FLASK_API_URL = os.getenv("FLASK_API_URL", "http://10.10.254.13:5020")
 API_TIMEOUT = 30.0
 HTTP_HOST = os.getenv("MCP_HOST", "0.0.0.0")
 HTTP_PORT = int(os.getenv("MCP_PORT", "8100"))

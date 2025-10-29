@@ -6,7 +6,7 @@ Quick API test script
 import requests
 import json
 
-BASE_URL = "http://localhost:5020"
+BASE_URL = "http://10.10.254.13:5020"
 
 print("Testing ADB Device Manager API...")
 print("=" * 60)
